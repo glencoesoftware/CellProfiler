@@ -309,6 +309,11 @@ def connect_mysql(host, user, pw, db):
     '''Creates and returns a db connection and cursor.'''
     connection = MySQLdb.connect(host=host, user=user, passwd=pw, db=db)
     cursor = SSCursor(connection)
+
+    rv = cursor.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+    logger.info('Set MySQL transaction isolation to "READ COMMITTED": %r' % rv)
+    cursor.execute('BEGIN')
+
     #
     # Use utf-8 encoding for strings
     #
@@ -3106,21 +3111,6 @@ OPTIONALLY ENCLOSED BY '"' ESCAPED BY '\\\\';
 
             ###########################################
             #
-            # The experiment table
-            #
-            # Update the modification timestamp. This
-            # has a side-effect of synchronizing (and blocking
-            # writes to the database for transactional DB engines)
-            # by taking a lock on the single row of
-            # the experiment table
-            ###########################################
-            stmt = "UPDATE %s SET %s='%s'" % \
-                   (self.get_table_name(cpmeas.EXPERIMENT),
-                    M_MODIFICATION_TIMESTAMP,
-                    datetime.datetime.now().isoformat())
-            execute(self.cursor, stmt, return_result=False)
-            ###########################################
-            #
             # The image table
             #
             ###########################################
@@ -3374,6 +3364,17 @@ OPTIONALLY ENCLOSED BY '"' ESCAPED BY '\\\\';
             if self.show_window:
                 workspace.display_data.header = disp_header
                 workspace.display_data.columns = disp_columns
+
+            ###########################################
+            #
+            # The experiment table
+            #
+            ###########################################
+            stmt = "UPDATE %s SET %s='%s'" % \
+                   (self.get_table_name(cpmeas.EXPERIMENT),
+                    M_MODIFICATION_TIMESTAMP,
+                    datetime.datetime.now().isoformat())
+            execute(self.cursor, stmt, return_result=False)
 
             self.connection.commit()
         except:
