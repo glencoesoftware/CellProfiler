@@ -1,0 +1,30 @@
+environment:
+  PYTHON: "C:\\Python27-x64"
+
+init:
+  - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - pip install -U wheel twine pyinstaller
+
+install:
+  - ps: |
+      $InstallersFolder = $Env:APPVEYOR_BUILD_FOLDER + "\_build\installers\"
+      New-Item $InstallersFolder -type directory | Out-Null
+      $WXInstaller = $InstallersFolder + "wxPython3.0-win64-3.0.2.0-py27.exe"
+      $WXURL = "http://downloads.sourceforge.net/wxpython/wxPython3.0-win64-3.0.2.0-py27.exe"
+      Start-FileDownload $WXURL -Timeout 60000 -FileName $WXInstaller
+      "    Installing..."
+      Start-Process $WXInstaller -Arg "/VERYSILENT /SUPPRESSMSGBOXES" -NoNewWindow -Wait
+      "    Done."
+
+build: off
+
+build_script:
+  - pip install "numpy==1.13.1"
+  - pip install -e .
+
+after_test:
+  - cd distribution\windows
+  - pyinstaller CellProfiler.spec CellProfiler.py
+
+artifacts:
+  - path: distribution\windows\dist\*
