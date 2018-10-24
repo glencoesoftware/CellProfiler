@@ -217,19 +217,20 @@ metadata tags in the folder name.
 #
 ####################
 def __image_resource(filename):
-    #If you're rendering in the GUI, relative paths are fine
-    if os.path.relpath(pkg_resources.resource_filename(
+    abspath = os.path.normpath(pkg_resources.resource_filename(
         "cellprofiler",
         os.path.join("data", "images", filename)
-    )) == os.path.join("cellprofiler","data", "images", filename):
-        return os.path.relpath(pkg_resources.resource_filename(
-            "cellprofiler",
-            os.path.join("data", "images", filename)
-        ))
+    ))
+    package_path = os.path.normpath(os.path.abspath(
+        os.path.join("cellprofiler","data", "images", filename)
+    ))
+    if abspath != package_path:
+        # We are probably building the documentation in sphinx.
+        # The path separator used by sphinx is "/" on all platforms.
+        return "../images/{}".format(filename)
 
-    # Otherwise, we are probably building the documentation in sphinx.
-    # The path separator used by sphinx is "/" on all platforms.
-    return "../images/{}".format(filename)
+    #If you're rendering in the GUI, absolute paths are fine
+    return abspath
 
 
 PROTIP_RECOMEND_ICON = __image_resource("thumb-up.png")

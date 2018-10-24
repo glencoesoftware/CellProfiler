@@ -4,22 +4,8 @@ import os
 
 import pkg_resources
 
-def __image_resource(filename):
-    #If you're rendering in the GUI, relative paths are fine
-    if os.path.relpath(pkg_resources.resource_filename(
-        "cellprofiler",
-        os.path.join("data", "images", filename)
-    )) == os.path.join("cellprofiler","data", "images", filename):
-        return os.path.relpath(pkg_resources.resource_filename(
-            "cellprofiler",
-            os.path.join("data", "images", filename)
-        ))
-    else:
-    #If you're rendering in sphinx, the relative path of the rst file is one below the make file so compensate accordingly
-        return os.path.join('..',os.path.relpath(pkg_resources.resource_filename(
-            "cellprofiler",
-            os.path.join("data", "images", filename)
-        )))
+from _help import __image_resource
+
 
 MeasureObjectIntensityDistribution_Magnitude_Phase = __image_resource('MeasureObjectIntensityDistribution_Magnitude_Phase.png')
 MeasureObjectIntensityDistribution_Edges_Centers = __image_resource('MeasureObjectIntensityDistribution_Edges_Centers.png')
