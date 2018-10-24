@@ -6,6 +6,10 @@ init:
   - pip install -U wheel twine pyinstaller
 
 install:
+  # wxPython 3 is not available from PyPI so we need to install it.
+  #
+  # Cribbed from:
+  #   * https://github.com/ArduPilot/MAVProxy/blob/master/appveyor.yml
   - ps: |
       $InstallersFolder = $Env:APPVEYOR_BUILD_FOLDER + "\_build\installers\"
       New-Item $InstallersFolder -type directory | Out-Null
@@ -19,6 +23,7 @@ install:
 build: off
 
 build_script:
+  # Install numpy first as javabridge needs it to already be installed
   - pip install "numpy==1.13.1"
   - pip install -e .
 
