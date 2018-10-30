@@ -51,7 +51,7 @@ setuptools.setup(
         ]
     },
     install_requires=[
-        "centrosome==1.0.8",
+        "centrosome==1.0.9",
         "docutils==0.14",
         "h5py==2.7.1",
         "inflect==0.2.5",

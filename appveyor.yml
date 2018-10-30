@@ -3,7 +3,7 @@ environment:
 
 init:
   - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
-  - pip install -U wheel twine pyinstaller cython
+  - pip install -U wheel twine pyinstaller
 
 install:
   # wxPython 3 is not available from PyPI so we need to install it.
