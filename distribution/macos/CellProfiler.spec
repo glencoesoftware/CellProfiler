@@ -87,7 +87,7 @@ a = Analysis(
 libpng_pathname = PyInstaller.utils.hooks.get_homebrew_path("libpng")
 libpng_pathname = os.path.join(libpng_pathname, "lib", "libpng16.16.dylib")
 
-java_pathname = os.path.join(os.environ["JAVA_HOME"], "jre/lib/server/libjvm.dylib")
+java_pathname = os.path.join(os.environ["JAVA_HOME"], "lib/server/libjvm.dylib")
 
 a.binaries += [
     ("libpng16.16.dylib", libpng_pathname, "BINARY"),
