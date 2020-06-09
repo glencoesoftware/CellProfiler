@@ -2,7 +2,7 @@ image:
   - Visual Studio 2019
   - macOS
 
-for
+for:
 -
   matrix:
     only:
