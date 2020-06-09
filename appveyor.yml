@@ -9,37 +9,51 @@ environment:
     - image: macOS
       PYTHON: ~/venv2.7.18
 
-init:
-  - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
-  - choco install vcpython27
-  - pip install -U wheel twine pyinstaller
 
-install:
-  # wxPython 3 is not available from PyPI so we need to install it.
-  #
-  # Cribbed from:
-  #   * https://github.com/ArduPilot/MAVProxy/blob/master/appveyor.yml
-  - ps: |
-      $InstallersFolder = $Env:APPVEYOR_BUILD_FOLDER + "\_build\installers\"
-      New-Item $InstallersFolder -type directory | Out-Null
-      $WXInstaller = $InstallersFolder + "wxPython3.0-win64-3.0.2.0-py27.exe"
-      $WXURL = "http://downloads.sourceforge.net/wxpython/wxPython3.0-win64-3.0.2.0-py27.exe"
-      Start-FileDownload $WXURL -Timeout 60000 -FileName $WXInstaller
-      "    Installing..."
-      Start-Process $WXInstaller -Arg "/VERYSILENT /SUPPRESSMSGBOXES" -NoNewWindow -Wait
-      "    Done."
+for:
+- 
+  matrix:
+    only:
+      - image: Visual Studio 2019
 
-build: off
+  init:
+    - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+    - choco install vcpython27
+    - pip install -U wheel twine pyinstaller
 
-build_script:
-  # Install numpy first as javabridge needs it to already be installed
-  - pip install "more-itertools==5.0.0"
-  - pip install "numpy==1.13.1"
-  - pip install -e .
+  install:
+    # wxPython 3 is not available from PyPI so we need to install it.
+    #
+    # Cribbed from:
+    #   * https://github.com/ArduPilot/MAVProxy/blob/master/appveyor.yml
+    - ps: |
+        $InstallersFolder = $Env:APPVEYOR_BUILD_FOLDER + "\_build\installers\"
+        New-Item $InstallersFolder -type directory | Out-Null
+        $WXInstaller = $InstallersFolder + "wxPython3.0-win64-3.0.2.0-py27.exe"
+        $WXURL = "http://downloads.sourceforge.net/wxpython/wxPython3.0-win64-3.0.2.0-py27.exe"
+        Start-FileDownload $WXURL -Timeout 60000 -FileName $WXInstaller
+        "    Installing..."
+        Start-Process $WXInstaller -Arg "/VERYSILENT /SUPPRESSMSGBOXES" -NoNewWindow -Wait
+        "    Done."
 
-after_test:
-  - cd distribution\windows
-  - pyinstaller CellProfiler.spec CellProfiler.py
+  build: off
 
-artifacts:
-  - path: distribution\windows\dist\*
+  build_script:
+    # Install numpy first as javabridge needs it to already be installed
+    - pip install "more-itertools==5.0.0"
+    - pip install "numpy==1.13.1"
+    - pip install -e .
+
+  after_test:
+    - cd distribution\windows
+    - pyinstaller CellProfiler.spec CellProfiler.py
+
+  artifacts:
+    - path: distribution\windows\dist\*
+-
+  matrix:
+    only:
+      - image: macOS
+
+ init:
+   - pip install -U wheel twine pyinstaller
