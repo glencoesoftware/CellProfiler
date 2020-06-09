@@ -2,19 +2,14 @@ image:
   - Visual Studio 2019
   - macOS
 
-environment:
-  matrix:
-    - image: Visual Studio 2019
-      PYTHON: "C:\\Python27-x64"
-    - image: macOS
-      PYTHON: ~/venv2.7.18
-
-
-for:
+for
 -
   matrix:
     only:
       - image: Visual Studio 2019
+
+  environemt:
+    PYTHON: "C:\\Python27-x64"
 
   init:
     - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
@@ -54,6 +49,9 @@ for:
   matrix:
     only:
       - image: macOS
+
+  environment:
+    PYTHON: ~/venv2.7.18
 
   init:
     - pip install -U wheel twine pyinstaller
