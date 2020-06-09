@@ -10,23 +10,29 @@ SHELL := bash
 
 .SUFFIXES:
 
-identity = "Developer ID Application: Allen Goodman (MERWFR65Q3)"
+#identity = "Developer ID Application: Allen Goodman (MERWFR65Q3)"
 
 CellProfiler:
-	git clone git@github.com:CellProfiler/CellProfiler.git $@
+	git clone https://github.com/glencoesoftware/CellProfiler $@
 
-	cd $@ && git checkout tags/v3.0.0
+	cd $@ && git checkout compat-3-0
 
 .PHONY: dependencies
 dependencies: CellProfiler
-	pip2 install --upgrade cython
-	pip2 install --upgrade numpy
-	pip2 install --upgrade scipy
+	pip install --no-cache-dir --upgrade cython
+	pip install --no-cache-dir --upgrade numpy==1.13.1
+	pip install --no-cache-dir --upgrade scipy==1.0.1
+	pip install --no-cache-dir --upgrade centrosome==1.0.9
+	pip install --no-cache-dir --upgrade javabridge==1.0.14
 
-	pip2 install --editable "CellProfiler[build, test]" --upgrade   
+	git clone git@github.com:emilroz/python-javabridge.git
+	cd python-javabridge && git checkout tags/1.0.14 -b 1.0.14-build && python setup.py bdist_wheel
+	cd python-javabridge/dist && pip install --no-cache-dir javabridge*
+
+	pip install --editable "CellProfiler[build, test]" --upgrade
 
 dist/CellProfiler.app: CellProfiler dependencies Info.plist
-	pyinstaller --noconfirm CellProfiler.spec
+	pyinstaller --noconfirm --log-level=DEBUG --windowed --clean -F CellProfiler.spec
 
 	cp $(word 3, $^) $@/Contents
 
@@ -40,12 +46,12 @@ CellProfiler.dmg: dist/CellProfiler.app
 		-format UDRW                		\
 		-fs HFS+                    		\
 		-fsargs "-c c=64,a=16,e=16" 		\
-		-size 400000k               		\
+		-size 450000k               		\
 		-srcfolder dist/CellProfiler.app 	\
 		-volname CellProfiler      			\
 		CellProfiler.dmg
 
-	codesign --force --verify --verbose --deep -s $(identity) $@
+	#codesign --force --verify --verbose --deep -s $(identity) $@
 
 .PHONY: clean
 clean:
@@ -54,3 +60,5 @@ clean:
 	if [ -d dist ]; then rm -rf build; fi
 
 	if [ CellProfiler.dmg ]; then rm -rf CellProfiler.dmg; fi
+
+	if [ -d python-javabridge ]; then rm -rf python-javabridge; fi
