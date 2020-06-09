@@ -4,6 +4,7 @@ environment:
 
 init:
   - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - choco install vcpython27
   - pip install -U wheel twine pyinstaller
 
 install:
