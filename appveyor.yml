@@ -24,6 +24,7 @@ build: off
 
 build_script:
   # Install numpy first as javabridge needs it to already be installed
+  - pip install "more-itertools==5.0.0"
   - pip install "numpy==1.13.1"
   - pip install -e .
 
