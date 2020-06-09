@@ -8,7 +8,7 @@ for:
     only:
       - image: Visual Studio 2019
 
-  environemt:
+  environment:
     PYTHON: "C:\\Python27-x64"
 
   init:
