@@ -47,7 +47,7 @@ setuptools.setup(
             "twine"
         ],
         "test": [
-            "pytest"
+            "pytest<5.0.0"
         ]
     },
     install_requires=[
@@ -80,7 +80,7 @@ setuptools.setup(
     ]),
     python_requires=">=2.7, <3",
     setup_requires=[
-        "pytest"
+        "pytest<5.0.0"
     ],
     url="https://github.com/CellProfiler/CellProfiler",
     version=find_version("cellprofiler", "__init__.py")
