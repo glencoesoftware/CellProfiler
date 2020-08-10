@@ -3123,6 +3123,7 @@ def is_movie(filename):
 
 class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     '''Base for image providers: handle pathname and filename & URLs'''
+    print('baseprovider')
 
     def __init__(self, name, pathname, filename):
         '''Initializer
@@ -3230,6 +3231,12 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     def is_matlab_file(self):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
+    def is_zarr_path(self):
+        return self.__url.lower().startswith('zarr')
+
+    def is_omero3d_path(self):
+        return self.__url.lower().__contains__('_z')
+
     def get_md5_hash(self, measurements):
         '''Compute the MD5 hash of the underlying file or use cached value
 
@@ -3317,6 +3324,9 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         elif self.is_numpy_file():
             img = np.load(self.get_full_name())
             self.scale = 1.0
+        elif self.is_zarr_path():
+            print('youve got a zarr')
+            raise NotImplementedError
         else:
             url = self.get_url()
             if url.lower().startswith("omero:"):
@@ -3370,6 +3380,39 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
         if self.is_numpy_file():
             data = np.load(pathname)
+        elif self.is_omero3d_path():
+            import requests
+            from PIL import Image
+            from io import BytesIO
+            import re
+            print('youve got an omero3d')
+            url = self.get_url()
+            response = requests.get(url)
+            image_bytes = BytesIO(response.content)
+            first_image = Image.open(image_bytes)
+            z = re.search('_z([0-9]*)_', url)
+            x = int(first_image.width)
+            y = int(first_image.height)
+            result = re.search('tile/([0-9]*)/([0-9]*)/', url)
+            image_id = result.group(1)
+            # zmax = int(z.group(1))
+            zmax = 22
+            stack = numpy.ndarray((zmax, x, y), 'uint16')
+            for i in range(zmax - 1):
+                url = re.sub(
+                    'tile/([0-9]*)/([0-9]*)/',
+                    'tile/%s/%s/'%(image_id, i + 1),
+                    url)
+                response = requests.get(url)
+                image_bytes = BytesIO(response.content)
+                image = Image.open(image_bytes)
+                stack[i, 0:x, 0:y] = image
+            data = stack
+        elif self.is_zarr_path:
+            import zarr
+            print('youve got a zarr')
+            url = self.get_url()
+            
         else:
             data = skimage.io.imread(pathname)
 
@@ -3398,7 +3441,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
     '''Reference an image via a URL'''
-
+    print('url provider')
     def __init__(self, name, url, rescale=True,
                  series=None, index=None, channel=None, volume=False, spacing=None):
         if url.lower().startswith("file:"):
@@ -3503,7 +3546,7 @@ def bad_sizes_warning(first_size, first_filename,
 
 
 FILE_SCHEME = "file:"
-PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero")
+PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "omero-3d")
 
 
 def pathname2url(path):
@@ -3516,6 +3559,14 @@ def pathname2url(path):
 
 def is_file_url(url):
     return url.lower().startswith(FILE_SCHEME)
+
+
+def is_zarr_url(url):
+    return url.lower().startswith('zarr')
+
+
+def is_omero3d_url(url):
+    return url.lower().startswith('omero-3d')
 
 
 def url2pathname(url):
