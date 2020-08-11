@@ -43,7 +43,7 @@ setuptools.setup(
     },
     extras_require={
         "build": [
-            "pyinstaller",
+            "pyinstaller<4.0.0",
             "twine"
         ],
         "test": [
