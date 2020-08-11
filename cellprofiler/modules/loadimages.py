@@ -3232,10 +3232,10 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
     def is_zarr_path(self):
-        return self.__url.lower().startswith('zarr')
+        return self.__url.lower().__contains__('zarr')
 
     def is_omero3d_path(self):
-        return self.__url.lower().__contains__('_z')
+        return self.__url.lower().__contains__('omero-3d')
 
     def get_md5_hash(self, measurements):
         '''Compute the MD5 hash of the underlying file or use cached value
@@ -3395,8 +3395,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             y = int(first_image.height)
             result = re.search('tile/([0-9]*)/([0-9]*)/', url)
             image_id = result.group(1)
-            # zmax = int(z.group(1))
-            zmax = 22
+            zmax = int(z.group(1))
             stack = numpy.ndarray((zmax, x, y), 'uint16')
             for i in range(zmax - 1):
                 url = re.sub(
@@ -3409,10 +3408,19 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 stack[i, 0:x, 0:y] = image
             data = stack
         elif self.is_zarr_path:
+            raise NotImplementedError
+
             import zarr
+            import re
             print('youve got a zarr')
             url = self.get_url()
-            
+            # zarr:///data/497a1b67-ef87-4e86-aeea-e35bfe335f00.zarr?group=/100&resolution=0&z=0&c=0&t=0
+            result = re.search(
+                'group=/([0-9]*)&resolution=([0-9]*)&z=([0-9]*)', 
+                url)
+            grp = result.group(1)
+            resolution = result.group(2)
+            zmax = result.group(3)
         else:
             data = skimage.io.imread(pathname)
 
