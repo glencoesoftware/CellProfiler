@@ -3123,8 +3123,6 @@ def is_movie(filename):
 
 class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     '''Base for image providers: handle pathname and filename & URLs'''
-    print('baseprovider')
-
     def __init__(self, name, pathname, filename):
         '''Initializer
 
@@ -3325,7 +3323,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             img = np.load(self.get_full_name())
             self.scale = 1.0
         elif self.is_zarr_path():
-            print('youve got a zarr')
             raise NotImplementedError
         else:
             url = self.get_url()
@@ -3377,7 +3374,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
     def __provide_volume(self):
         pathname = url2pathname(self.get_url())
-
         if self.is_numpy_file():
             data = np.load(pathname)
         elif self.is_omero3d_path():
@@ -3385,27 +3381,31 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             from PIL import Image
             from io import BytesIO
             import re
-            print('youve got an omero3d')
             url = self.get_url()
-            response = requests.get(url)
-            image_bytes = BytesIO(response.content)
-            first_image = Image.open(image_bytes)
-            z = re.search('_z([0-9]*)_', url)
-            x = int(first_image.width)
-            y = int(first_image.height)
-            result = re.search('tile/([0-9]*)/([0-9]*)/', url)
-            image_id = result.group(1)
-            zmax = int(z.group(1))
-            stack = numpy.ndarray((zmax, x, y), 'uint16')
-            for i in range(zmax - 1):
-                url = re.sub(
-                    'tile/([0-9]*)/([0-9]*)/',
-                    'tile/%s/%s/'%(image_id, i + 1),
-                    url)
+            parsed_url = urlparse.urlparse(url)
+            query_params = urlparse.parse_qs(parsed_url.query)
+            zmin = int(query_params['zmin'][0])
+            zmax = int(query_params['zmax'][0])
+            width = int(query_params['width'][0])
+            height = int(query_params['height'][0])
+            stack = numpy.ndarray((zmax, width, height), 'uint16')
+            for i in range(zmin, zmax):
+                # https://v2-demo-dev.glencoesoftware.com/tile/217078/0/0/0?format=png&bsession=a3093977-8fdc-4f74-9590-f3e56884d3c6&name=omero-3d_217078_z22_c0_t0.png&zmin=22&zmax=0&width=512&height=512
+                path = re.sub(r'tile/([0-9]*)/([0-9]*)/' ,r'/tile/\1/%s/'%i,
+                    parsed_url.path)
+                query = parsed_url.query.split('&zmin')[0]
+                url = urlparse.urlunparse((
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    path,
+                    '',
+                    query,
+                    ''
+                ))
                 response = requests.get(url)
                 image_bytes = BytesIO(response.content)
                 image = Image.open(image_bytes)
-                stack[i, 0:x, 0:y] = image
+                stack[i - 1, :, :] = image
             data = stack
         elif self.is_zarr_path:
             raise NotImplementedError
@@ -3449,7 +3449,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
     '''Reference an image via a URL'''
-    print('url provider')
     def __init__(self, name, url, rescale=True,
                  series=None, index=None, channel=None, volume=False, spacing=None):
         if url.lower().startswith("file:"):
