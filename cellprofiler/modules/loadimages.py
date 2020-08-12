@@ -3388,9 +3388,11 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             zmax = int(query_params['zmax'][0])
             width = int(query_params['width'][0])
             height = int(query_params['height'][0])
-            stack = numpy.ndarray((zmax, width, height), 'uint16')
+            stack = numpy.ndarray((zmax - zmin + 1, width, height), 'uint16')
+            if zmin != 0:
+                zmax = zmax - zmin
+                zmin = 0
             for i in range(zmin, zmax):
-                # https://v2-demo-dev.glencoesoftware.com/tile/217078/0/0/0?format=png&bsession=a3093977-8fdc-4f74-9590-f3e56884d3c6&name=omero-3d_217078_z22_c0_t0.png&zmin=22&zmax=0&width=512&height=512
                 path = re.sub(r'tile/([0-9]*)/([0-9]*)/' ,r'/tile/\1/%s/'%i,
                     parsed_url.path)
                 query = parsed_url.query.split('&zmin')[0]
@@ -3408,19 +3410,31 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 stack[i - 1, :, :] = image
             data = stack
         elif self.is_zarr_path:
-            raise NotImplementedError
-
             import zarr
             import re
-            print('youve got a zarr')
             url = self.get_url()
-            # zarr:///data/497a1b67-ef87-4e86-aeea-e35bfe335f00.zarr?group=/100&resolution=0&z=0&c=0&t=0
-            result = re.search(
-                'group=/([0-9]*)&resolution=([0-9]*)&z=([0-9]*)', 
-                url)
-            grp = result.group(1)
-            resolution = result.group(2)
-            zmax = result.group(3)
+            parsed_url = urlparse.urlparse(url)
+            query_params = urlparse.parse_qs(parsed_url.query)
+            group = query_params['group'][0]
+            zmin = int(query_params['zmin'])[0]
+            zmax = int(query_params['zmax'][0])
+            xmin = int(query_params['xmin'])[0]
+            xmax = int(query_params['xmax'][0])
+            ymin = int(query_params['ymin'])[0]
+            ymax = int(query_params['ymax'][0])
+            width = int(query_params['width'][0])
+            height = int(query_params['height'][0])
+            channel = int(query_params['c'][0])
+            time = int(query_params['t'][0])
+            resolution = int(query_params['resolution'][0])
+            loader = zarr.load(path + group)[0]
+            data = loader[
+                channel,
+                time,
+                zmin:zmax,
+                xmin:xmax,
+                ymin:ymax
+                ]
         else:
             data = skimage.io.imread(pathname)
 
