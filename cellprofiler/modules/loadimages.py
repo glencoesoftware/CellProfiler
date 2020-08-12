@@ -70,7 +70,7 @@ import hashlib
 import httplib
 import logging
 import os
-import re
+import re as regex
 import stat
 import sys
 import tempfile
@@ -79,7 +79,6 @@ import urllib
 import urlparse
 
 import cellprofiler.measurement
-import numpy as np
 
 logger = logging.getLogger(__name__)
 cached_file_lists = {}
@@ -111,6 +110,11 @@ from cellprofiler.measurement import \
     C_OBJECTS_URL
 import numpy
 import skimage.io
+
+import requests
+from PIL import Image
+from io import BytesIO
+# import zarr
 
 '''STK TIFF Tag UIC1 - for MetaMorph internal use'''
 UIC1_TAG = 33628
@@ -1019,12 +1023,12 @@ to store the image."""% globals()))
             is_multichannel = (self.is_multichannel or fd.wants_movie_frame_grouping)
             if not is_multichannel:
                 if self.channel_wants_images(fd.channels[0]):
-                    if not re.match(invalid_chars_pattern, fd.channels[0].image_name.value):
+                    if not regex.match(invalid_chars_pattern, fd.channels[0].image_name.value):
                         raise cps.ValidationError(warning_text, fd.channels[0].image_name)
             else:
                 for channel in fd.channels:
                     if self.channel_wants_images(channel):
-                        if not re.match(invalid_chars_pattern, fd.channels[0].image_name.value):
+                        if not regex.match(invalid_chars_pattern, fd.channels[0].image_name.value):
                             raise cps.ValidationError(warning_text, channel.image_name)
 
         # The best practice is to have a single LoadImages or LoadData module.
@@ -2764,7 +2768,7 @@ to store the image."""% globals()))
         '''
         ttfs = self.text_to_find_vars()
         for i, ttf in enumerate(ttfs):
-            if re.search(ttf.value, filename):
+            if regex.search(ttf.value, filename):
                 return i
         return None
 
@@ -3377,10 +3381,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         if self.is_numpy_file():
             data = np.load(pathname)
         elif self.is_omero3d_path():
-            import requests
-            from PIL import Image
-            from io import BytesIO
-            import re
             url = self.get_url()
             parsed_url = urlparse.urlparse(url)
             query_params = urlparse.parse_qs(parsed_url.query)
@@ -3393,7 +3393,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 zmax = zmax - zmin
                 zmin = 0
             for i in range(zmin, zmax):
-                path = re.sub(r'tile/([0-9]*)/([0-9]*)/' ,r'/tile/\1/%s/'%i,
+                path = regex.sub(r'tile/([0-9]*)/([0-9]*)/' ,r'/tile/\1/%s/'%i,
                     parsed_url.path)
                 query = parsed_url.query.split('&zmin')[0]
                 url = urlparse.urlunparse((
@@ -3410,8 +3410,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 stack[i - 1, :, :] = image
             data = stack
         elif self.is_zarr_path:
-            import zarr
-            import re
             url = self.get_url()
             parsed_url = urlparse.urlparse(url)
             query_params = urlparse.parse_qs(parsed_url.query)
