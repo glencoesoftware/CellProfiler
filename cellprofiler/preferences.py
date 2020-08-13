@@ -966,6 +966,14 @@ def is_url_path(path):
     for protocol in ('http', 'https', 'ftp'):
         if path.lower().startswith('%s:' % protocol):
             return True
+    if is_zarr_path(path):
+        return True
+    return False
+
+def is_zarr_path(path):
+    '''Return True if the path should be treated as Zarr URL'''
+    if 'zarr' in path.lower():
+        return True
     return False
 
 

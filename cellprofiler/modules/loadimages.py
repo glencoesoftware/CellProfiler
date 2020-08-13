@@ -79,6 +79,7 @@ import urllib
 import urlparse
 
 import cellprofiler.measurement
+import numpy as np
 
 logger = logging.getLogger(__name__)
 cached_file_lists = {}
@@ -114,7 +115,8 @@ import skimage.io
 import requests
 from PIL import Image
 from io import BytesIO
-# import zarr
+import zarr
+import s3fs
 
 '''STK TIFF Tag UIC1 - for MetaMorph internal use'''
 UIC1_TAG = 33628
@@ -3127,6 +3129,7 @@ def is_movie(filename):
 
 class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     '''Base for image providers: handle pathname and filename & URLs'''
+
     def __init__(self, name, pathname, filename):
         '''Initializer
 
@@ -3218,6 +3221,8 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         return True
 
     def get_full_name(self):
+        if self.is_zarr_file:
+            return self.get_url()
         self.cache_file()
         if self.__is_cached:
             return self.__cached_file
@@ -3233,7 +3238,7 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     def is_matlab_file(self):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
-    def is_zarr_path(self):
+    def is_zarr_file(self):
         return self.__url.lower().__contains__('zarr')
 
     def is_omero3d_path(self):
@@ -3248,7 +3253,7 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         #
         # Cache the MD5 hash on the image reader
         #
-        if self.is_matlab_file() or self.is_numpy_file():
+        if self.is_matlab_file() or self.is_numpy_file() or self.is_zarr_file:
             rdr = None
         else:
             from bioformats.formatreader import get_image_reader
@@ -3315,7 +3320,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             return self.__provide_volume()
 
         from bioformats.formatreader import get_image_reader
-        self.cache_file()
+        if not preferences.is_zarr_path(self.get_url()):
+            self.cache_file()
         filename = self.get_filename()
         channel_names = []
         if self.is_matlab_file():
@@ -3326,8 +3332,19 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         elif self.is_numpy_file():
             img = np.load(self.get_full_name())
             self.scale = 1.0
-        elif self.is_zarr_path():
-            raise NotImplementedError
+        elif preferences.is_zarr_path(self.get_url()):
+            img = self.provide_zarr()
+
+            if img.dtype in [numpy.int8, numpy.uint8]:
+                self.scale = 255
+            elif img.dtype in [numpy.int16, numpy.uint16]:
+                self.scale = 65535
+            elif img.dtype == numpy.int32:
+                self.scale = 2**32-1
+            elif img.dtype == numpy.uint32:
+                self.scale = 2**32
+            else:
+                self.scale = 1
         else:
             url = self.get_url()
             if url.lower().startswith("omero:"):
@@ -3378,6 +3395,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
     def __provide_volume(self):
         pathname = url2pathname(self.get_url())
+
         if self.is_numpy_file():
             data = np.load(pathname)
         elif self.is_omero3d_path():
@@ -3409,30 +3427,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 image = Image.open(image_bytes)
                 stack[i - 1, :, :] = image
             data = stack
-        elif self.is_zarr_path:
-            url = self.get_url()
-            parsed_url = urlparse.urlparse(url)
-            query_params = urlparse.parse_qs(parsed_url.query)
-            group = query_params['group'][0]
-            zmin = int(query_params['zmin'])[0]
-            zmax = int(query_params['zmax'][0])
-            xmin = int(query_params['xmin'])[0]
-            xmax = int(query_params['xmax'][0])
-            ymin = int(query_params['ymin'])[0]
-            ymax = int(query_params['ymax'][0])
-            width = int(query_params['width'][0])
-            height = int(query_params['height'][0])
-            channel = int(query_params['c'][0])
-            time = int(query_params['t'][0])
-            resolution = int(query_params['resolution'][0])
-            loader = zarr.load(path + group)[0]
-            data = loader[
-                channel,
-                time,
-                zmin:zmax,
-                xmin:xmax,
-                ymin:ymax
-                ]
+        elif preferences.is_zarr_path(self.get_url()):
+            data = self.provide_zarr()
         else:
             data = skimage.io.imread(pathname)
 
@@ -3459,8 +3455,47 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         )
 
 
+    def provide_zarr(self):
+        url = self.get_url()
+        parsed_url = urlparse.urlparse(url)
+        query_params = urlparse.parse_qs(parsed_url.query)
+        group = int(query_params['group'][0])
+        zmin = int(query_params['zmin'][0])
+        zmax = int(query_params['zmax'][0])
+        xmin = int(query_params['xmin'][0])
+        xmax = int(query_params['xmax'][0])
+        ymin = int(query_params['ymin'][0])
+        ymax = int(query_params['ymax'][0])
+        width = int(query_params['width'][0])
+        height = int(query_params['height'][0])
+        channel = int(query_params['c'][0])
+        time = int(query_params['t'][0])
+        resolution = int(query_params['resolution'][0])
+        aws_access_key_id=query_params['key'][0]
+        aws_secret_access_key=query_params['secret'][0]
+        endpoint = query_params['endpoint'][0]
+        region = query_params['region'][0]
+
+        s3 = s3fs.S3FileSystem(
+            anon=False,
+            key=aws_access_key_id,
+            secret=aws_secret_access_key,
+            client_kwargs={
+                'endpoint_url': endpoint,
+                'region_name': region
+            }
+        )
+
+        path = parsed_url.netloc + parsed_url.path
+        store = s3fs.S3Map(root=path, s3=s3, check=False)
+        root = zarr.group(store=store)
+        data = root[group][resolution][channel, time, zmin:zmax, xmin:xmax, ymin:ymax]
+        return numpy.squeeze(data)
+
+
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
     '''Reference an image via a URL'''
+    
     def __init__(self, name, url, rescale=True,
                  series=None, index=None, channel=None, volume=False, spacing=None):
         if url.lower().startswith("file:"):
@@ -3474,8 +3509,9 @@ class LoadImagesImageProviderURL(LoadImagesImageProvider):
         self.url = url
 
     def get_url(self):
-        if self.cache_file():
-            return super(LoadImagesImageProviderURL, self).get_url()
+        if not preferences.is_zarr_path(self.url):
+            if self.cache_file():
+                return super(LoadImagesImageProviderURL, self).get_url()
         return self.url
 
 
@@ -3565,7 +3601,7 @@ def bad_sizes_warning(first_size, first_filename,
 
 
 FILE_SCHEME = "file:"
-PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "omero-3d")
+PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "zarr")
 
 
 def pathname2url(path):
@@ -3578,14 +3614,6 @@ def pathname2url(path):
 
 def is_file_url(url):
     return url.lower().startswith(FILE_SCHEME)
-
-
-def is_zarr_url(url):
-    return url.lower().startswith('zarr')
-
-
-def is_omero3d_url(url):
-    return url.lower().startswith('omero-3d')
 
 
 def url2pathname(url):

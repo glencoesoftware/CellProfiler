@@ -251,7 +251,7 @@ pass the current filter.
 
     @staticmethod
     def modpath_to_url(modpath):
-        if modpath[0] in ("http", "https", "ftp"):
+        if modpath[0] in ("http", "https", "ftp", "zarr"):
             if len(modpath) == 1:
                 return modpath[0] + ":"
             elif len(modpath) == 2:
