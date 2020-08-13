@@ -3495,7 +3495,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
     '''Reference an image via a URL'''
-    
+
     def __init__(self, name, url, rescale=True,
                  series=None, index=None, channel=None, volume=False, spacing=None):
         if url.lower().startswith("file:"):
