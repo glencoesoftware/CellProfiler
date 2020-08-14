@@ -70,7 +70,7 @@ import hashlib
 import httplib
 import logging
 import os
-import re as regex
+import re
 import stat
 import sys
 import tempfile
@@ -1025,12 +1025,12 @@ to store the image."""% globals()))
             is_multichannel = (self.is_multichannel or fd.wants_movie_frame_grouping)
             if not is_multichannel:
                 if self.channel_wants_images(fd.channels[0]):
-                    if not regex.match(invalid_chars_pattern, fd.channels[0].image_name.value):
+                    if not re.match(invalid_chars_pattern, fd.channels[0].image_name.value):
                         raise cps.ValidationError(warning_text, fd.channels[0].image_name)
             else:
                 for channel in fd.channels:
                     if self.channel_wants_images(channel):
-                        if not regex.match(invalid_chars_pattern, fd.channels[0].image_name.value):
+                        if not re.match(invalid_chars_pattern, fd.channels[0].image_name.value):
                             raise cps.ValidationError(warning_text, channel.image_name)
 
         # The best practice is to have a single LoadImages or LoadData module.
@@ -2770,7 +2770,7 @@ to store the image."""% globals()))
         '''
         ttfs = self.text_to_find_vars()
         for i, ttf in enumerate(ttfs):
-            if regex.search(ttf.value, filename):
+            if re.search(ttf.value, filename):
                 return i
         return None
 
@@ -3221,7 +3221,7 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         return True
 
     def get_full_name(self):
-        if self.is_zarr_file:
+        if self.is_zarr_path or self.is_omero3d_path:
             return self.get_url()
         self.cache_file()
         if self.__is_cached:
@@ -3238,11 +3238,11 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     def is_matlab_file(self):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
-    def is_zarr_file(self):
-        return self.__url.lower().__contains__('zarr')
+    def is_zarr_path(self):
+        return self.__url.lower().startswith('zarr:')
 
     def is_omero3d_path(self):
-        return self.__url.lower().__contains__('omero-3d')
+        return self.__url.lower().startswith('omero-3d:')
 
     def get_md5_hash(self, measurements):
         '''Compute the MD5 hash of the underlying file or use cached value
@@ -3253,7 +3253,7 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         #
         # Cache the MD5 hash on the image reader
         #
-        if self.is_matlab_file() or self.is_numpy_file() or self.is_zarr_file:
+        if self.is_matlab_file() or self.is_numpy_file() or self.is_zarr_path() or self.is_omero3d_path():
             rdr = None
         else:
             from bioformats.formatreader import get_image_reader
@@ -3320,8 +3320,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             return self.__provide_volume()
 
         from bioformats.formatreader import get_image_reader
-        if not preferences.is_zarr_path(self.get_url()):
-            self.cache_file()
+        self.cache_file()
         filename = self.get_filename()
         channel_names = []
         if self.is_matlab_file():
@@ -3332,9 +3331,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         elif self.is_numpy_file():
             img = np.load(self.get_full_name())
             self.scale = 1.0
-        elif preferences.is_zarr_path(self.get_url()):
+        elif self.is_zarr_path():
             img = self.provide_zarr()
-
             if img.dtype in [numpy.int8, numpy.uint8]:
                 self.scale = 255
             elif img.dtype in [numpy.int16, numpy.uint16]:
@@ -3406,28 +3404,25 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             zmax = int(query_params['zmax'][0])
             width = int(query_params['width'][0])
             height = int(query_params['height'][0])
+            image_id = query_params['imageid'][0]
+            channel = query_params['c'][0]
             stack = numpy.ndarray((zmax - zmin + 1, width, height), 'uint16')
-            if zmin != 0:
-                zmax = zmax - zmin
-                zmin = 0
             for i in range(zmin, zmax):
-                path = regex.sub(r'tile/([0-9]*)/([0-9]*)/' ,r'/tile/\1/%s/'%i,
-                    parsed_url.path)
-                query = parsed_url.query.split('&zmin')[0]
+                path = urljoin('/tile', str(i), channel, '0')
                 url = urlparse.urlunparse((
                     parsed_url.scheme,
                     parsed_url.netloc,
                     path,
                     '',
-                    query,
+                    parsed_url.query,
                     ''
                 ))
                 response = requests.get(url)
                 image_bytes = BytesIO(response.content)
                 image = Image.open(image_bytes)
-                stack[i - 1, :, :] = image
+                stack[i - zmin, :, :] = image
             data = stack
-        elif preferences.is_zarr_path(self.get_url()):
+        elif self.is_zarr_path():
             data = self.provide_zarr()
         else:
             data = skimage.io.imread(pathname)
@@ -3509,9 +3504,10 @@ class LoadImagesImageProviderURL(LoadImagesImageProvider):
         self.url = url
 
     def get_url(self):
-        if not preferences.is_zarr_path(self.url):
-            if self.cache_file():
-                return super(LoadImagesImageProviderURL, self).get_url()
+        if self.is_zarr_path() or self.is_omero3d_path():
+            return self.url
+        if self.cache_file():
+            return super(LoadImagesImageProviderURL, self).get_url()
         return self.url
 
 
@@ -3601,7 +3597,7 @@ def bad_sizes_warning(first_size, first_filename,
 
 
 FILE_SCHEME = "file:"
-PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "zarr")
+PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "omero-3d", "zarr")
 
 
 def pathname2url(path):

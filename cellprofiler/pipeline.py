@@ -2637,6 +2637,8 @@ class Pipeline(object):
                     pathname.startswith("https:") or
                     pathname.startswith("ftp:") or
                     pathname.startswith("omero:") or
+                    pathname.startswith("omero-3d:") or
+                    pathname.startswith("zarr:") or
                     pathname.startswith("file:")):
                 urls.append(pathname)
             else:
