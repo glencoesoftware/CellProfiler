@@ -117,6 +117,7 @@ from PIL import Image
 from io import BytesIO
 import zarr
 import s3fs
+from posixpath import join as urljoin
 
 '''STK TIFF Tag UIC1 - for MetaMorph internal use'''
 UIC1_TAG = 33628
@@ -3408,7 +3409,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             channel = query_params['c'][0]
             stack = numpy.ndarray((zmax - zmin + 1, width, height), 'uint16')
             for i in range(zmin, zmax):
-                path = urljoin('/tile', str(i), channel, '0')
+                path = urljoin('/tile', image_id, str(i), channel, '0')
                 url = urlparse.urlunparse((
                     parsed_url.scheme,
                     parsed_url.netloc,
@@ -3505,6 +3506,12 @@ class LoadImagesImageProviderURL(LoadImagesImageProvider):
 
     def get_url(self):
         if self.is_zarr_path() or self.is_omero3d_path():
+            url = None
+            for scheme in ['zarr:', 'omero-3d:']:
+                if self.url.startswith(scheme):
+                    url = self.url.split(scheme)[1]
+            if url is not None:
+                return url
             return self.url
         if self.cache_file():
             return super(LoadImagesImageProviderURL, self).get_url()
