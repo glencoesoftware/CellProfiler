@@ -3418,7 +3418,18 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                     parsed_url.query,
                     ''
                 ))
-                response = requests.get(url)
+                timeout = 2
+                response = None
+                while timeout < 500:
+                    try:
+                        response = requests.get(url, timeout=timeout)
+                    except Exception:
+                        logger.warn('Get with timeout %s sec failed' %timeout)
+                        timeout = timeout**2
+                    else:
+                        break
+                if response is None:
+                    raise Exception('Failed to retrieve data from URL')
                 image_bytes = BytesIO(response.content)
                 image = Image.open(image_bytes)
                 stack[i - zmin, :, :] = image
