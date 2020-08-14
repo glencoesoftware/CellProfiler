@@ -3407,8 +3407,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             height = int(query_params['height'][0])
             image_id = query_params['imageid'][0]
             channel = query_params['c'][0]
-            stack = numpy.ndarray((zmax - zmin + 1, width, height), 'uint16')
-            for i in range(zmin, zmax):
+            stack = numpy.ndarray((zmax - zmin + 1, height, width))
+            for i in range(zmin, zmax + 1):
                 path = urljoin('/tile', image_id, str(i), channel, '0')
                 url = urlparse.urlunparse((
                     parsed_url.scheme,
@@ -3462,8 +3462,6 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         xmax = int(query_params['xmax'][0])
         ymin = int(query_params['ymin'][0])
         ymax = int(query_params['ymax'][0])
-        width = int(query_params['width'][0])
-        height = int(query_params['height'][0])
         channel = int(query_params['c'][0])
         time = int(query_params['t'][0])
         resolution = int(query_params['resolution'][0])
@@ -3485,8 +3483,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         path = parsed_url.netloc + parsed_url.path
         store = s3fs.S3Map(root=path, s3=s3, check=False)
         root = zarr.group(store=store)
-        data = root[group][resolution][channel, time, zmin:zmax, xmin:xmax, ymin:ymax]
-        return numpy.squeeze(data)
+        data = root[group][resolution][channel, time, zmin:zmax, ymin:ymax, xmin:xmax]
+        return data
 
 
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
