@@ -118,6 +118,7 @@ from io import BytesIO
 import zarr
 import s3fs
 from posixpath import join as urljoin
+import ConfigParser
 
 '''STK TIFF Tag UIC1 - for MetaMorph internal use'''
 UIC1_TAG = 33628
@@ -3476,10 +3477,18 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         channel = int(query_params['c'][0])
         time = int(query_params['t'][0])
         resolution = int(query_params['resolution'][0])
-        aws_access_key_id=query_params['key'][0]
-        aws_secret_access_key=query_params['secret'][0]
-        endpoint = query_params['endpoint'][0]
-        region = query_params['region'][0]
+        
+        parser = ConfigParser.RawConfigParser()
+        config_path = os.path.join(os.path.expanduser('~'), '.aws/config')
+        cred_path = os.path.join(os.path.expanduser('~'), '.aws/credentials')
+        if parser.read(config_path) == [] or parser.read(cred_path)  == []:
+            raise Exception('no AWS credential file found')
+        parser.read(config_path)
+        region = parser.get('default', 'region')
+        endpoint = parser.get('default', 'endpoint')
+        parser.read(cred_path)
+        aws_access_key_id = parser.get('default', 'aws_access_key_id')
+        aws_secret_access_key = parser.get('default', 'aws_secret_access_key')
 
         s3 = s3fs.S3FileSystem(
             anon=False,
