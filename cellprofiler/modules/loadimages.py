@@ -3482,21 +3482,14 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         config_path = os.path.join(os.path.expanduser('~'), '.aws/config')
         cred_path = os.path.join(os.path.expanduser('~'), '.aws/credentials')
         if parser.read(config_path) == [] or parser.read(cred_path)  == []:
-            raise Exception('no AWS credential file found')
+            raise Exception('no AWS config/credential file found')
         parser.read(config_path)
-        region = parser.get('default', 'region')
         endpoint = parser.get('default', 'endpoint')
-        parser.read(cred_path)
-        aws_access_key_id = parser.get('default', 'aws_access_key_id')
-        aws_secret_access_key = parser.get('default', 'aws_secret_access_key')
 
         s3 = s3fs.S3FileSystem(
             anon=False,
-            key=aws_access_key_id,
-            secret=aws_secret_access_key,
             client_kwargs={
-                'endpoint_url': endpoint,
-                'region_name': region
+                'endpoint_url': endpoint
             }
         )
 
