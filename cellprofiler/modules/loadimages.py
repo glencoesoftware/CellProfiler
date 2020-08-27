@@ -3240,8 +3240,11 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     def is_matlab_file(self):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
+    def is_zarr_file(self):
+        return os.path.splitext(self.__filename)[-1].lower() == ".zarr" and self.__url.lower().startswith('file:')
+
     def is_zarr_path(self):
-        return self.__url.lower().startswith('zarr:')
+        return (self.__url.lower().startswith('zarr:') or self.__url.lower().startswith('zarr-s3:'))
 
     def is_omero3d_path(self):
         return self.__url.lower().startswith('omero-3d:')
@@ -3255,7 +3258,11 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         #
         # Cache the MD5 hash on the image reader
         #
-        if self.is_matlab_file() or self.is_numpy_file() or self.is_zarr_path() or self.is_omero3d_path():
+        if (self.is_matlab_file() or
+                self.is_numpy_file() or
+                self.is_zarr_file() or
+                self.is_zarr_path() or
+                self.is_omero3d_path()):
             rdr = None
         else:
             from bioformats.formatreader import get_image_reader
@@ -3284,7 +3291,9 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
 
         Possibly delete the temporary file'''
         if self.__is_cached:
-            if self.is_matlab_file() or self.is_numpy_file():
+            if (self.is_matlab_file() or
+                    self.is_numpy_file() or
+                    self.is_zarr_file()):
                 try:
                     os.remove(self.__cached_file)
                 except:
@@ -3333,7 +3342,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         elif self.is_numpy_file():
             img = np.load(self.get_full_name())
             self.scale = 1.0
-        elif self.is_zarr_path():
+        elif self.is_zarr_path() or self.is_zarr_file():
             img = self.provide_zarr()
             if img.dtype in [numpy.int8, numpy.uint8]:
                 self.scale = 255
@@ -3394,7 +3403,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         return image
 
     def __provide_volume(self):
-        pathname = url2pathname(self.get_url())
+        pathname = url2pathname(self.url)
 
         if self.is_numpy_file():
             data = np.load(pathname)
@@ -3435,7 +3444,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 image = Image.open(image_bytes)
                 stack[i - zmin, :, :] = image
             data = stack
-        elif self.is_zarr_path():
+        elif self.is_zarr_path() or self.is_zarr_file():
             data = self.provide_zarr()
         else:
             data = skimage.io.imread(pathname)
@@ -3464,39 +3473,74 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
 
     def provide_zarr(self):
-        url = self.get_url()
-        parsed_url = urlparse.urlparse(url)
-        query_params = urlparse.parse_qs(parsed_url.query)
-        group = int(query_params['group'][0])
-        zmin = int(query_params['zmin'][0])
-        zmax = int(query_params['zmax'][0])
-        xmin = int(query_params['xmin'][0])
-        xmax = int(query_params['xmax'][0])
-        ymin = int(query_params['ymin'][0])
-        ymax = int(query_params['ymax'][0])
-        channel = int(query_params['c'][0])
-        time = int(query_params['t'][0])
-        resolution = int(query_params['resolution'][0])
+        if self.is_zarr_file():
+            pathname = os.path.join(self.get_pathname(), self.get_filename())
+            
+            def find_array(pathname):
+                try:
+                    store = zarr.open(pathname)
+                except:
+                    raise Exception('file is not a zarr')
+                else:
+                    info = dict(store.info_items())
+                    if info['Type'] == 'zarr.core.Array':
+                        return store
+                    else:
+                        for group in store.groups():
+                            if group is not None:
+                                find_array(os.path.join(pathname, str(group[0])))
+                        for array in store.arrays():
+                            if array is not None:
+                                find_array(os.path.join(pathname, str(array[0])))
+            
+            array = find_array(str(pathname))
+            data = array[:, :, :, :, :]
         
-        parser = ConfigParser.RawConfigParser()
-        config_path = os.path.join(os.path.expanduser('~'), '.aws/config')
-        cred_path = os.path.join(os.path.expanduser('~'), '.aws/credentials')
-        if parser.read(config_path) == [] or parser.read(cred_path)  == []:
-            raise Exception('no AWS config/credential file found')
-        parser.read(config_path)
-        endpoint = parser.get('default', 'endpoint')
+        else:
+            url = self.url
+            if '~' in self.url:
+                user = os.path.expanduser('~')
+                path = url.split('~')[1]
+                url = user + path
+            parsed_url = urlparse.urlparse(url)
+            query_params = urlparse.parse_qs(parsed_url.query)
+            group = int(query_params['group'][0])
+            zmin = int(query_params['zmin'][0])
+            zmax = int(query_params['zmax'][0])
+            xmin = int(query_params['xmin'][0])
+            xmax = int(query_params['xmax'][0])
+            ymin = int(query_params['ymin'][0])
+            ymax = int(query_params['ymax'][0])
+            channel = int(query_params['c'][0])
+            time = int(query_params['t'][0])
+            resolution = int(query_params['resolution'][0])
+            
+            if self.url.startswith('zarr-s3:'):
+                parser = ConfigParser.RawConfigParser()
+                config_path = os.path.join(os.path.expanduser('~'), '.aws/config')
+                cred_path = os.path.join(os.path.expanduser('~'), '.aws/credentials')
+                if parser.read(config_path) == [] or parser.read(cred_path)  == []:
+                    raise Exception('no AWS config/credential file found')
+                parser.read(config_path)
+                endpoint = parser.get('default', 'endpoint')
 
-        s3 = s3fs.S3FileSystem(
-            anon=False,
-            client_kwargs={
-                'endpoint_url': endpoint
-            }
-        )
+                s3 = s3fs.S3FileSystem(
+                    anon=False,
+                    client_kwargs={
+                        'endpoint_url': endpoint
+                    }
+                )
 
-        path = parsed_url.netloc + parsed_url.path
-        store = s3fs.S3Map(root=path, s3=s3, check=False)
-        root = zarr.group(store=store)
-        data = root[group][resolution][channel, time, zmin:zmax, ymin:ymax, xmin:xmax]
+                path = parsed_url.netloc + parsed_url.path
+                store = s3fs.S3Map(root=path, s3=s3, check=False)
+                root = zarr.group(store=store)
+
+            elif self.url.startswith('zarr:'):
+                path = parsed_url.path
+                root = zarr.group(store=path)
+
+            data = root[group][resolution][channel, time, zmin:zmax, ymin:ymax, xmin:xmax]
+
         return data
 
 
@@ -3518,7 +3562,7 @@ class LoadImagesImageProviderURL(LoadImagesImageProvider):
     def get_url(self):
         if self.is_zarr_path() or self.is_omero3d_path():
             url = None
-            for scheme in ['zarr:', 'omero-3d:']:
+            for scheme in ['zarr:', 'zarr-s3:' 'omero-3d:']:
                 if self.url.startswith(scheme):
                     url = self.url.split(scheme)[1]
             if url is not None:
@@ -3615,7 +3659,15 @@ def bad_sizes_warning(first_size, first_filename,
 
 
 FILE_SCHEME = "file:"
-PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero", "omero-3d", "zarr")
+PASSTHROUGH_SCHEMES = (
+    "http",
+    "https",
+    "ftp",
+    "omero",
+    "omero-3d",
+    "zarr",
+    "zarr-s3"
+    )
 
 
 def pathname2url(path):
