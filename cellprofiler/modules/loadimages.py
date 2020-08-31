@@ -3504,16 +3504,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                 url = user + path
             parsed_url = urlparse.urlparse(url)
             query_params = urlparse.parse_qs(parsed_url.query)
-            group = int(query_params['group'][0])
-            zmin = int(query_params['zmin'][0])
-            zmax = int(query_params['zmax'][0])
-            xmin = int(query_params['xmin'][0])
-            xmax = int(query_params['xmax'][0])
-            ymin = int(query_params['ymin'][0])
-            ymax = int(query_params['ymax'][0])
-            channel = int(query_params['c'][0])
-            time = int(query_params['t'][0])
-            resolution = int(query_params['resolution'][0])
+            array = query_params['array'][0]
             
             if self.url.startswith('zarr-s3:'):
                 parser = ConfigParser.RawConfigParser()
@@ -3533,13 +3524,31 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
 
                 path = parsed_url.netloc + parsed_url.path
                 store = s3fs.S3Map(root=path, s3=s3, check=False)
-                root = zarr.group(store=store)
+                root = zarr.open(store=store)
 
             elif self.url.startswith('zarr:'):
                 path = parsed_url.path
-                root = zarr.group(store=path)
+                root = zarr.open(store=path)
 
-            data = root[group][resolution][channel, time, zmin:zmax, ymin:ymax, xmin:xmax]
+            # parse array string input to array indices
+            a = array.replace('[', '').replace(']', '').split(',')
+            for i in range(len(a)):
+                if ':' in a[i]:
+                    a[i] = a[i].split(':')
+                    if len(a[i]) == 2:
+                        a[i] = [a[i][0], a[i][1], 1]
+                else:
+                    a[i] = [a[i], int(a[i]) + 1, 1]
+                for j in range(len(a[i])):
+                    a[i][j] = int(a[i][j])
+
+            data = root[
+                a[0][0]:a[0][1]:a[0][2],
+                a[1][0]:a[1][1]:a[1][2],
+                a[2][0]:a[2][1]:a[2][2],
+                a[3][0]:a[3][1]:a[3][2],
+                a[4][0]:a[4][1]:a[4][2]
+                ]
 
         return data
 
