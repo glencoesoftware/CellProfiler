@@ -3419,11 +3419,10 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             channel = query_params['c'][0]
             stack = numpy.ndarray((zmax - zmin + 1, height, width))
             for i in range(zmin, zmax + 1):
-                path = urljoin('/tile', image_id, str(i), channel, '0')
                 url = urlparse.urlunparse((
-                    parsed_url.scheme,
-                    parsed_url.netloc,
-                    path,
+                    '',
+                    '',
+                    parsed_url.path,
                     '',
                     parsed_url.query,
                     ''
