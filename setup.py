@@ -61,6 +61,7 @@ setuptools.setup(
         "matplotlib==2.0.2",
         "mysqlclient==1.3.9",
         "numpy==1.13.1",
+        "numcodecs==0.6.3",
         "prokaryote==2.3.0",
         "python-bioformats==1.3.1",
         "pyzmq==15.3.0",
