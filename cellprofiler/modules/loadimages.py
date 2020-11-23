@@ -3408,7 +3408,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         if self.is_numpy_file():
             data = np.load(pathname)
         elif self.is_omero3d_path():
-            url = self.get_url()
+            scheme = 'omero-3d:'
+            url = self.url.split(scheme)[1]
             parsed_url = urlparse.urlparse(url)
             query_params = urlparse.parse_qs(parsed_url.query)
             zmin = int(query_params['zmin'][0])
@@ -3419,10 +3420,11 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             channel = query_params['c'][0]
             stack = numpy.ndarray((zmax - zmin + 1, height, width))
             for i in range(zmin, zmax + 1):
+                path = urljoin('/tile', image_id, str(i), channel, '0')
                 url = urlparse.urlunparse((
-                    '',
-                    '',
-                    parsed_url.path,
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    path,
                     '',
                     parsed_url.query,
                     ''
@@ -3433,7 +3435,8 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
                     try:
                         response = requests.get(url, timeout=timeout)
                     except Exception:
-                        logger.warn('Get with timeout %s sec failed' %timeout)
+                        logger.warn('Get %s with timeout %s sec failed' % (
+                            url, timeout))
                         timeout = timeout**2
                     else:
                         break
