@@ -70,8 +70,7 @@ setuptools.setup(
         "scikit-image==0.13.1",
         "scikit-learn==0.19.0",
         "scipy==1.0.1",
-        "zarr==2.3.2",
-        "s3fs==0.2.2"
+        "zarr==2.3.2"
     ],
     license="BSD",
     name="CellProfiler",

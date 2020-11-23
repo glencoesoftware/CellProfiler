@@ -116,7 +116,6 @@ import requests
 from PIL import Image
 from io import BytesIO
 import zarr
-import s3fs
 from posixpath import join as urljoin
 import ConfigParser
 
@@ -3509,24 +3508,7 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
             array = query_params['array'][0]
             
             if self.url.startswith('zarr-s3:'):
-                parser = ConfigParser.RawConfigParser()
-                config_path = os.path.join(os.path.expanduser('~'), '.aws/config')
-                cred_path = os.path.join(os.path.expanduser('~'), '.aws/credentials')
-                if parser.read(config_path) == [] or parser.read(cred_path)  == []:
-                    raise Exception('no AWS config/credential file found')
-                parser.read(config_path)
-                endpoint = parser.get('default', 'endpoint')
-
-                s3 = s3fs.S3FileSystem(
-                    anon=False,
-                    client_kwargs={
-                        'endpoint_url': endpoint
-                    }
-                )
-
-                path = parsed_url.netloc + parsed_url.path
-                store = s3fs.S3Map(root=path, s3=s3, check=False)
-                root = zarr.open(store=store)
+                raise NotImplementedError('No S3 compatibility.')
 
             elif self.url.startswith('zarr:'):
                 path = parsed_url.path
