@@ -2327,6 +2327,7 @@ class PipelineController(object):
             num_workers = min(
                 len(self.__workspace.measurements.get_image_numbers()),
                 cellprofiler.preferences.get_max_workers())
+            logger.info("Using {} workers".format(num_workers))
             self.__analysis = cellprofiler.analysis.Analysis(
                 self.__pipeline,
                 measurements_file_path,
@@ -2339,7 +2340,7 @@ class PipelineController(object):
 
         except Exception as instance:
             extended_message = "Failure in analysis startup"
-
+            logger.error("Failed to run analysis", exc_info=True)
             error = cellprofiler.gui.dialog.Error("Error", extended_message)
 
             if error.status is wx.ID_CANCEL:
