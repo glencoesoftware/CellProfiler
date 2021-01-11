@@ -112,6 +112,13 @@ from cellprofiler.measurement import \
 import numpy
 import skimage.io
 
+import requests
+from PIL import Image
+from io import BytesIO
+import zarr
+from posixpath import join as urljoin
+import ConfigParser
+
 '''STK TIFF Tag UIC1 - for MetaMorph internal use'''
 UIC1_TAG = 33628
 '''STK TIFF Tag UIC2 - stack z distance, creation time...'''
@@ -3215,6 +3222,8 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         return True
 
     def get_full_name(self):
+        if self.is_zarr_path or self.is_omero3d_path:
+            return self.get_url()
         self.cache_file()
         if self.__is_cached:
             return self.__cached_file
@@ -3230,6 +3239,15 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
     def is_matlab_file(self):
         return os.path.splitext(self.__filename)[-1].lower() == ".mat"
 
+    def is_zarr_file(self):
+        return os.path.splitext(self.__filename)[-1].lower() == ".zarr" and self.__url.lower().startswith('file:')
+
+    def is_zarr_path(self):
+        return (self.__url.lower().startswith('zarr:') or self.__url.lower().startswith('zarr-s3:'))
+
+    def is_omero3d_path(self):
+        return self.__url.lower().startswith('omero-3d:')
+
     def get_md5_hash(self, measurements):
         '''Compute the MD5 hash of the underlying file or use cached value
 
@@ -3239,7 +3257,11 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         #
         # Cache the MD5 hash on the image reader
         #
-        if self.is_matlab_file() or self.is_numpy_file():
+        if (self.is_matlab_file() or
+                self.is_numpy_file() or
+                self.is_zarr_file() or
+                self.is_zarr_path() or
+                self.is_omero3d_path()):
             rdr = None
         else:
             from bioformats.formatreader import get_image_reader
@@ -3268,7 +3290,9 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
 
         Possibly delete the temporary file'''
         if self.__is_cached:
-            if self.is_matlab_file() or self.is_numpy_file():
+            if (self.is_matlab_file() or
+                    self.is_numpy_file() or
+                    self.is_zarr_file()):
                 try:
                     os.remove(self.__cached_file)
                 except:
@@ -3317,6 +3341,18 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         elif self.is_numpy_file():
             img = np.load(self.get_full_name())
             self.scale = 1.0
+        elif self.is_zarr_path() or self.is_zarr_file():
+            img = self.provide_zarr()
+            if img.dtype in [numpy.int8, numpy.uint8]:
+                self.scale = 255
+            elif img.dtype in [numpy.int16, numpy.uint16]:
+                self.scale = 65535
+            elif img.dtype == numpy.int32:
+                self.scale = 2**32-1
+            elif img.dtype == numpy.uint32:
+                self.scale = 2**32
+            else:
+                self.scale = 1
         else:
             url = self.get_url()
             if url.lower().startswith("omero:"):
@@ -3366,10 +3402,51 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         return image
 
     def __provide_volume(self):
-        pathname = url2pathname(self.get_url())
+        pathname = url2pathname(self.url)
 
         if self.is_numpy_file():
             data = np.load(pathname)
+        elif self.is_omero3d_path():
+            scheme = 'omero-3d:'
+            url = self.url.split(scheme)[1]
+            parsed_url = urlparse.urlparse(url)
+            query_params = urlparse.parse_qs(parsed_url.query)
+            zmin = int(query_params['zmin'][0])
+            zmax = int(query_params['zmax'][0])
+            width = int(query_params['width'][0])
+            height = int(query_params['height'][0])
+            image_id = query_params['imageid'][0]
+            channel = query_params['c'][0]
+            stack = numpy.ndarray((zmax - zmin + 1, height, width))
+            for i in range(zmin, zmax + 1):
+                path = urljoin('/tile', image_id, str(i), channel, '0')
+                url = urlparse.urlunparse((
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    path,
+                    '',
+                    parsed_url.query,
+                    ''
+                ))
+                timeout = 2
+                response = None
+                while timeout < 500:
+                    try:
+                        response = requests.get(url, timeout=timeout)
+                    except Exception:
+                        logger.warn('Get %s with timeout %s sec failed' % (
+                            url, timeout))
+                        timeout = timeout**2
+                    else:
+                        break
+                if response is None:
+                    raise Exception('Failed to retrieve data from URL')
+                image_bytes = BytesIO(response.content)
+                image = Image.open(image_bytes)
+                stack[i - zmin, :, :] = image
+            data = stack
+        elif self.is_zarr_path() or self.is_zarr_file():
+            data = self.provide_zarr()
         else:
             data = skimage.io.imread(pathname)
 
@@ -3396,6 +3473,70 @@ class LoadImagesImageProvider(LoadImagesImageProviderBase):
         )
 
 
+    def provide_zarr(self):
+        if self.is_zarr_file():
+            pathname = os.path.join(self.get_pathname(), self.get_filename())
+            
+            def find_array(pathname):
+                try:
+                    store = zarr.open(pathname)
+                except:
+                    raise Exception('file is not a zarr')
+                else:
+                    info = dict(store.info_items())
+                    if info['Type'] == 'zarr.core.Array':
+                        return store
+                    else:
+                        for group in store.groups():
+                            if group is not None:
+                                find_array(os.path.join(pathname, str(group[0])))
+                        for array in store.arrays():
+                            if array is not None:
+                                find_array(os.path.join(pathname, str(array[0])))
+            
+            array = find_array(str(pathname))
+            data = array[:, :, :, :, :]
+        
+        else:
+            url = self.url
+            if '~' in self.url:
+                user = os.path.expanduser('~')
+                path = url.split('~')[1]
+                url = user + path
+            parsed_url = urlparse.urlparse(url)
+            query_params = urlparse.parse_qs(parsed_url.query)
+            array = query_params['array'][0]
+            
+            if self.url.startswith('zarr-s3:'):
+                raise NotImplementedError('No S3 compatibility.')
+
+            elif self.url.startswith('zarr:'):
+                path = parsed_url.path
+                root = zarr.open(store=path)
+
+            # parse array string input to array indices
+            a = array.replace('[', '').replace(']', '').split(',')
+            for i in range(len(a)):
+                if ':' in a[i]:
+                    a[i] = a[i].split(':')
+                    if len(a[i]) == 2:
+                        a[i] = [a[i][0], a[i][1], 1]
+                else:
+                    a[i] = [a[i], int(a[i]) + 1, 1]
+                for j in range(len(a[i])):
+                    a[i][j] = int(a[i][j])
+
+            data = root[
+                a[0][0]:a[0][1]:a[0][2],
+                a[1][0]:a[1][1]:a[1][2],
+                a[2][0]:a[2][1]:a[2][2],
+                a[3][0]:a[3][1]:a[3][2],
+                a[4][0]:a[4][1]:a[4][2]
+                ]
+
+        return data
+
+
 class LoadImagesImageProviderURL(LoadImagesImageProvider):
     '''Reference an image via a URL'''
 
@@ -3412,6 +3553,14 @@ class LoadImagesImageProviderURL(LoadImagesImageProvider):
         self.url = url
 
     def get_url(self):
+        if self.is_zarr_path() or self.is_omero3d_path():
+            url = None
+            for scheme in ['zarr:', 'zarr-s3:' 'omero-3d:']:
+                if self.url.startswith(scheme):
+                    url = self.url.split(scheme)[1]
+            if url is not None:
+                return url
+            return self.url
         if self.cache_file():
             return super(LoadImagesImageProviderURL, self).get_url()
         return self.url
@@ -3503,7 +3652,15 @@ def bad_sizes_warning(first_size, first_filename,
 
 
 FILE_SCHEME = "file:"
-PASSTHROUGH_SCHEMES = ("http", "https", "ftp", "omero")
+PASSTHROUGH_SCHEMES = (
+    "http",
+    "https",
+    "ftp",
+    "omero",
+    "omero-3d",
+    "zarr",
+    "zarr-s3"
+    )
 
 
 def pathname2url(path):
