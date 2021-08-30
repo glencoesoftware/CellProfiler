@@ -3222,7 +3222,7 @@ class LoadImagesImageProviderBase(cpimage.AbstractImageProvider):
         return True
 
     def get_full_name(self):
-        if self.is_zarr_path or self.is_omero3d_path:
+        if self.is_zarr_path() or self.is_omero3d_path():
             return self.get_url()
         self.cache_file()
         if self.__is_cached:
