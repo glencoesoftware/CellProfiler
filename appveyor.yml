@@ -27,6 +27,7 @@ build: off
 build_script:
   # Install numpy first as javabridge needs it to already be installed
   - pip install "numpy==1.13.1"
+  - pip install "setuptools_scm==5.0.2"
   # Install pytest < 5.0.0 first as later versions may be included
   # in downstream dependencies
   - pip install "pytest<5.0.0"
