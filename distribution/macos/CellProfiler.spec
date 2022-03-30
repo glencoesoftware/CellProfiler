@@ -46,6 +46,7 @@ hiddenimports += PyInstaller.utils.hooks.collect_submodules("skimage.filters.ran
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("sentry_sdk")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("sentry_sdk.integrations")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("sentry_sdk.integrations.stdlib")
+hiddenimports += PyInstaller.utils.hooks.collect_submodules("numcodecs")
 
 hiddenimports += [
     "pkg_resources.py2_warn",
