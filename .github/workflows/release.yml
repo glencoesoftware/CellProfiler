@@ -135,5 +135,5 @@ jobs:
 name: create-release
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - "compat-4-2-test"
