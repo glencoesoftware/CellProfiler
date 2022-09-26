@@ -25,9 +25,8 @@ jobs:
           architecture: x64
       - name: Install build-time dependencies
         run: |
-          pip install --upgrade wheel
-          pip install pip==22.0.4
-          pip install setuptools==62.1.0
+          pip install --upgrade wheel pip
+          pip install setuptools==49
           pip install numpy==1.20.1
           pip install pyinstaller==4.10
       - env:
@@ -43,9 +42,9 @@ jobs:
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
-          pip install --editable . --upgrade
+          pip install --editable . --upgrade --no-use-pep517
           cd ..
-          pip install --editable .
+          pip install --editable . --no-use-pep517
       - env:
           JDK_HOME: C:\hostedtoolcache\windows\jdk\14.0.1\x64
         if: ${{ matrix.os == 'windows-2019' }}
@@ -57,9 +56,9 @@ jobs:
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
-          pip install --editable . --upgrade
+          pip install --editable . --upgrade --no-use-pep517
           cd ..
-          pip install --editable .
+          pip install --editable . --no-use-pep517
       - name: Display installed packages
         run: pip list
       - if: ${{ matrix.os == 'windows-2019' }}
