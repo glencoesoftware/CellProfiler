@@ -102,9 +102,7 @@ a = Analysis(
     excludes=excludes,
     hiddenimports=hiddenimports,
     hookspath=[],
-    pathex=[
-        'CellProfiler'
-    ],
+    pathex=['CellProfiler', '.', '../core', 'core'],
     runtime_hooks=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False
