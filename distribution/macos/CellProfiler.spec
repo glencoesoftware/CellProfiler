@@ -62,6 +62,8 @@ hiddenimports += [
     "sentry_sdk.integrations.stdlib",
     "sentry_sdk.integrations.modules",
     "sentry_sdk.integrations.threading",
+    "fsspec",
+    "lxml",
 ]
 
 print(f"De-duplicating {len(hiddenimports)} hidden imports...")
