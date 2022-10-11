@@ -8,8 +8,14 @@ jobs:
         python-version: [ "3.8" ]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v2
-        name: Checkout Repo
+      - name: Checkout CellProfiler
+        uses: actions/checkout@v3
+      - name: Checkout CellProfiler-core
+        uses: actions/checkout@v3
+        with:
+          repository: glencoesoftware/core
+          path: core
+          ref: compat-5-0-ngff
       - name: Generate versions as env variables
         uses: HardNorth/github-version-generate@v1.2.0
         with:
@@ -22,7 +28,6 @@ jobs:
           architecture: x64
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: setup.py
       - uses: actions/setup-java@v3
         name: Install Java
         with:
@@ -45,35 +50,31 @@ jobs:
           brew install mysql
           brew install create-dmg
           git clone https://github.com/glencoesoftware/core.git
-          cd core
-          git checkout compat-5-0-ngff
-          pip install --editable . --upgrade --no-use-pep517
-          cd ..
+          pip install --editable core/. --upgrade --no-use-pep517
           pip install --editable . --no-use-pep517
       - if: ${{ matrix.os == 'windows-2019' }}
         name: Windows dependency install
         run: |
           pip install cython
           pip install mysqlclient==1.4.6
-          git clone https://github.com/glencoesoftware/core.git
-          cd core
-          git checkout compat-5-0-ngff
-          pip install --editable . --upgrade --no-use-pep517
-          cd ..
+          pip install --editable core/. --upgrade --no-use-pep517
           pip install --editable . --no-use-pep517
         env:
           JDK_HOME: ${{ env.JAVA_HOME }}
       - name: Display installed packages
         run: pip list
       - if: ${{ matrix.os == 'windows-2019' }}
-        name: Windows pyinstaller build and package
-        run: |
-          pyinstaller distribution/windows/cellprofiler.spec
-          iscc /dMyAppVersion="${{ env.RELEASE_VERSION }}-ngff" /dJavaDir="${{ env.JAVA_HOME }}" "distribution/windows/cellprofiler.iss"
+        name: Windows pyinstaller build
+        run: pyinstaller distribution/windows/cellprofiler.spec
       - if: ${{ matrix.os == 'macos-10.15' }}
-        name: MacOS pyinstaller build and package
+        name: MacOS pyinstaller build
+        run: pyinstaller -y ./distribution/macos/CellProfiler.spec
+      - if: ${{ matrix.os == 'windows-2019' }}
+        name: Windows create Inno installer
+        run: iscc /dMyAppVersion="${{ env.RELEASE_VERSION }}-ngff" /dJavaDir="${{ env.JAVA_HOME }}" "distribution/windows/cellprofiler.iss"
+      - if: ${{ matrix.os == 'macos-10.15' }}
+        name: MacOS create dmg image
         run: |
-          pyinstaller -y ./distribution/macos/CellProfiler.spec
           create-dmg \
             --volname "CellProfiler" \
             --window-pos 200 120 \
