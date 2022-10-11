@@ -1,0 +1,144 @@
+jobs:
+  build:
+    name: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ macos-10.15, windows-2019 ]
+        python-version: [ "3.8" ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        name: Checkout Repo
+      - name: Generate versions as env variables
+        uses: HardNorth/github-version-generate@v1.2.0
+        with:
+          version-source: file
+          version-file: cellprofiler/__init__.py
+          version-file-extraction-pattern: '__version__ = "([^\s]*)'
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          architecture: x64
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: setup.py
+      - uses: actions/setup-java@v3
+        name: Install Java
+        with:
+          distribution: "temurin"
+          java-version: "11" # The JDK version to make available on the path.
+          java-package: jdk
+          architecture: x64
+      - name: Install build-time dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install numpy==1.23.1
+          pip install pyinstaller==4.10
+      - name: MacOS dependency install
+        env:
+          LDFLAGS: -L/usr/local/opt/openssl/lib
+          CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+        if: ${{ matrix.os == 'macos-10.15' }}
+        run: |
+          brew install mysql
+          brew install create-dmg
+          git clone https://github.com/glencoesoftware/core.git
+          cd core
+          git checkout compat-5-0-ngff
+          pip install --editable . --upgrade --no-use-pep517
+          cd ..
+          pip install --editable . --no-use-pep517
+      - env:
+          JDK_HOME: C:\hostedtoolcache\windows\jdk\14.0.1\x64
+        if: ${{ matrix.os == 'windows-2019' }}
+        name: Windows dependency install
+        run: |
+          pip install cython
+          pip install mysqlclient==1.4.6
+          git clone https://github.com/glencoesoftware/core.git
+          cd core
+          git checkout compat-5-0-ngff
+          pip install --editable . --upgrade --no-use-pep517
+          cd ..
+          pip install --editable . --no-use-pep517
+      - name: Display installed packages
+        run: pip list
+      - if: ${{ matrix.os == 'windows-2019' }}
+        name: Windows pyinstaller build and package
+        run: |
+          pyinstaller distribution/windows/cellprofiler.spec
+          iscc /dMyAppVersion="${{ env.RELEASE_VERSION }}-ngff" "distribution/windows/cellprofiler.iss"
+      - if: ${{ matrix.os == 'macos-10.15' }}
+        name: MacOS pyinstaller build and package
+        run: |
+          pyinstaller -y ./distribution/macos/CellProfiler.spec
+          create-dmg \
+            --volname "CellProfiler" \
+            --window-pos 200 120 \
+            --window-size 800 529 \
+            --icon-size 130 \
+            --text-size 14 \
+            --icon "CellProfiler.app" 260 250 \
+            --app-drop-link 540 250 \
+            --hdiutil-quiet \
+            "./dist/CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg" \
+            "./dist/CellProfiler.app"
+      - if: ${{ matrix.os == 'macos-10.15' }}
+        uses: actions/upload-artifact@v1
+        name: MacOS artifact upload
+        with:
+          name: CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg
+          path: ./dist/CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg
+      - if: ${{ matrix.os == 'windows-2019' }}
+        uses: actions/upload-artifact@v2
+        name: Windows artifact upload
+        with:
+          name: CellProfiler-Windows-${{ env.RELEASE_VERSION }}-ngff.exe
+          path: ./distribution/windows/Output/CellProfiler-Windows-${{ env.RELEASE_VERSION }}-ngff.exe
+  upload:
+    name: upload
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v2
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          draft: true
+          prerelease: true
+          release_name: ${{ github.ref }}
+          tag_name: ${{ github.ref }}
+      - uses: actions/download-artifact@v1
+        with:
+          name: CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg
+          path: ./
+      - uses: actions/download-artifact@v1
+        with:
+          name: CellProfiler-Windows-${{ env.RELEASE_VERSION }}-ngff.exe
+          path: ./
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-release-asset@v1
+        with:
+          asset_content_type: application/zip
+          asset_name: CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg
+          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-macOS-${{ env.RELEASE_VERSION }}-ngff.dmg
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-release-asset@v1
+        with:
+          asset_content_type: application/exe
+          asset_name: CellProfiler-Windows-${{ env.RELEASE_VERSION }}-ngff.exe
+          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-Windows-${{ env.RELEASE_VERSION }}-ngff.exe
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+name: create-release
+on:
+  push:
+    branches:
+      - compat-5-0-ngff
