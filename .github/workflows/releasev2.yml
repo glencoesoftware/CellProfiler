@@ -50,11 +50,10 @@ jobs:
           pip install --editable . --upgrade --no-use-pep517
           cd ..
           pip install --editable . --no-use-pep517
-      - env:
-          JDK_HOME: ${{ JAVA_HOME_11_x64 }}
-        if: ${{ matrix.os == 'windows-2019' }}
+      - if: ${{ matrix.os == 'windows-2019' }}
         name: Windows dependency install
         run: |
+          export JDK_HOME=${{ JAVA_HOME_11_x64 }}
           pip install cython
           pip install mysqlclient==1.4.6
           git clone https://github.com/glencoesoftware/core.git
