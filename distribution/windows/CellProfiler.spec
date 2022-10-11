@@ -28,6 +28,7 @@ hiddenimports = []
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('centrosome')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.modules')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core.modules')
+hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core.readers')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.utilities')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("scipy")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("scipy.special")
@@ -56,6 +57,33 @@ hiddenimports += [
     "sentry_sdk.integrations.threading",
 ]
 
+excludes = [
+    "SimpleITK",
+    "pyamg",
+    "sphinx",
+    "whoosh",
+    "glib",
+    "PyQt5.QtGui",
+    "PyQt5.QtCore",
+    "PyQt4.QtGui",
+    "PyQt4.QtCore",
+    "PySide.QtGui",
+    "PySide.QtCore",
+    "astropy",
+    "pandas",
+    "PyQt5",
+    "PyQt4",
+    "PySide",
+    "PySide2",
+    "gtk",
+    "FixTk",
+    "tcl",
+    "tk",
+    "_tkinter",
+    "tkinter",
+    "Tkinter"
+]
+
 a = Analysis(['CellProfilerLauncher.py'],
              pathex=['CellProfiler', '.', '../core', 'core'],
              binaries=binaries,
@@ -63,7 +91,7 @@ a = Analysis(['CellProfilerLauncher.py'],
              hiddenimports=hiddenimports,
              hookspath=[],
              runtime_hooks=[],
-             excludes=[],
+             excludes=excludes,
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher,

@@ -41,10 +41,10 @@ hiddenimports += PyInstaller.utils.hooks.collect_submodules("pandas")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("scipy")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("scipy.special")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("wx")
-hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.gui')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.modules')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core.modules')
+hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core.readers')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('skimage.io._plugins')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("skimage.feature")
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("skimage.filters")
@@ -68,9 +68,7 @@ print(f"De-duplicating {len(hiddenimports)} hidden imports...")
 hiddenimports = list(set(hiddenimports))
 print(f"...Complete! {len(hiddenimports)} found")
 
-excludes = []
-
-excludes += [
+excludes = [
     "SimpleITK",
     "pyamg",
     "sphinx",
