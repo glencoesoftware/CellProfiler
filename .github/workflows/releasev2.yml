@@ -54,6 +54,7 @@ jobs:
         name: Windows dependency install
         run: |
           export JDK_HOME=${{ JAVA_HOME_11_x64 }}
+          echo $JDK_HOME
           pip install cython
           pip install mysqlclient==1.4.6
           git clone https://github.com/glencoesoftware/core.git
