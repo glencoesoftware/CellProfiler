@@ -69,7 +69,7 @@ jobs:
         name: Windows pyinstaller build and package
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
-          iscc /dMyAppVersion="${{ env.RELEASE_VERSION }}-ngff" /java="${{ env.JAVA_HOME }}" "distribution/windows/cellprofiler.iss"
+          iscc /dMyAppVersion="${{ env.RELEASE_VERSION }}-ngff" /dJavaDir="${{ env.JAVA_HOME }}" "distribution/windows/cellprofiler.iss"
       - if: ${{ matrix.os == 'macos-10.15' }}
         name: MacOS pyinstaller build and package
         run: |

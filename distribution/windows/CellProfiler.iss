@@ -40,7 +40,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\..\dist\CellProfiler\CellProfiler.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\dist\CellProfiler\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{param:java}\x64\*"; DestDir: "{app}\java"; Flags: recursesubdirs
+Source: "{#JavaDir}\x64\*"; DestDir: "{app}\java"; Flags: recursesubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
