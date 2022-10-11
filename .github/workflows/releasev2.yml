@@ -33,7 +33,7 @@ jobs:
       - name: Install build-time dependencies
         run: |
           echo $JAVA_HOME
-          echo "JDK_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "JDK_HOME=${{ JAVA_HOME }}" >> $GITHUB_ENV
           pip install --upgrade pip setuptools wheel
           pip install numpy==1.23.1
           pip install pyinstaller==4.10
