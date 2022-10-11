@@ -28,6 +28,7 @@ jobs:
           architecture: x64
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: ./setup.py
       - uses: actions/setup-java@v3
         name: Install Java
         with:
