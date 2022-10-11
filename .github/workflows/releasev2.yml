@@ -32,6 +32,7 @@ jobs:
           architecture: x64
       - name: Install build-time dependencies
         run: |
+          echo $JAVA_HOME
           pip install --upgrade pip setuptools wheel
           pip install numpy==1.23.1
           pip install pyinstaller==4.10
@@ -53,8 +54,6 @@ jobs:
       - if: ${{ matrix.os == 'windows-2019' }}
         name: Windows dependency install
         run: |
-          export JDK_HOME=${{ JAVA_HOME_11_x64 }}
-          echo $JDK_HOME
           pip install cython
           pip install mysqlclient==1.4.6
           git clone https://github.com/glencoesoftware/core.git
