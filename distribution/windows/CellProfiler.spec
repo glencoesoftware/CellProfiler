@@ -55,6 +55,7 @@ hiddenimports += [
     "sentry_sdk.integrations.stdlib",
     "sentry_sdk.integrations.modules",
     "sentry_sdk.integrations.threading",
+    "zarr",
 ]
 
 excludes = [
