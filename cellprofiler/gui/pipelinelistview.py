@@ -1317,6 +1317,7 @@ class PipelineListCtrl(wx.ScrolledWindow):
         self.bmp_slider = plv_get_bitmap(IMG_SLIDER)
         self.bmp_slider_active = plv_get_bitmap(IMG_SLIDER_ACTIVE)
         self.bmp_downarrow = plv_get_bitmap(IMG_DOWNARROW)
+        self.bold_font = self.Font.MakeBold()
         # The items to display
         self.items = []
         # The current or active item (has wx.CONTROL_CURRENT display flag)
@@ -1782,11 +1783,11 @@ class PipelineListCtrl(wx.ScrolledWindow):
             if item.selected:
                 flags |= wx.CONTROL_SELECTED
                 item_text_color = text_color_selected
-                font = font.MakeBold()
+                font = self.bold_font
 
             if self.active_item == index:
                 flags |= wx.CONTROL_CURRENT
-                font = font.MakeBold()
+                font = self.bold_font
 
                 if self.always_draw_current_as_if_selected:
                     flags |= wx.CONTROL_SELECTED
