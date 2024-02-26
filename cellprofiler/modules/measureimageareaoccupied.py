@@ -216,22 +216,25 @@ Select the previously identified objects you would like to measure.""".format(
 
         area_occupied = numpy.sum([region["area"] for region in region_properties])
 
-        if objects.volumetric:
-            spacing = None
+        if area_occupied > 0:
+            if objects.volumetric:
+                spacing = None
 
-            if objects.has_parent_image:
-                spacing = objects.parent_image.spacing
+                if objects.has_parent_image:
+                    spacing = objects.parent_image.spacing
 
-            labels = numpy.unique(label_image)
+                labels = numpy.unique(label_image)
 
-            if labels[0] == 0:
-                labels = labels[1:]
+                if labels[0] == 0:
+                    labels = labels[1:]
 
-            perimeter = surface_area(label_image, spacing=spacing, index=labels)
+                perimeter = surface_area(label_image, spacing=spacing, index=labels)
+            else:
+                perimeter = numpy.sum(
+                    [numpy.round(region["perimeter"]) for region in region_properties]
+                )
         else:
-            perimeter = numpy.sum(
-                [numpy.round(region["perimeter"]) for region in region_properties]
-            )
+            perimeter = 0
 
         measurements = workspace.measurements
         pipeline = workspace.pipeline
@@ -264,10 +267,13 @@ Select the previously identified objects you would like to measure.""".format(
 
         area_occupied = numpy.sum(image.pixel_data > 0)
 
-        if image.volumetric:
-            perimeter = surface_area(image.pixel_data > 0, spacing=image.spacing)
+        if area_occupied > 0:
+            if image.volumetric:
+                perimeter = surface_area(image.pixel_data > 0, spacing=image.spacing)
+            else:
+                perimeter = skimage.measure.perimeter(image.pixel_data > 0)
         else:
-            perimeter = skimage.measure.perimeter(image.pixel_data > 0)
+            perimeter = 0
 
         total_area = numpy.prod(numpy.shape(image.pixel_data))
 
@@ -449,8 +455,8 @@ def surface_area(label_image, spacing=None, index=None):
         spacing = (1.0,) * label_image.ndim
 
     if index is None:
-        verts, faces = skimage.measure.marching_cubes_classic(
-            label_image, spacing=spacing, level=0
+        verts, faces, _normals, _values = skimage.measure.marching_cubes(
+            label_image, spacing=spacing, level=0, method="lorensen"
         )
 
         return skimage.measure.mesh_surface_area(verts, faces)
@@ -464,8 +470,8 @@ def surface_area(label_image, spacing=None, index=None):
 
 
 def _label_surface_area(label_image, label, spacing):
-    verts, faces = skimage.measure.marching_cubes_classic(
-        label_image == label, spacing=spacing, level=0
+    verts, faces, _normals, _values = skimage.measure.marching_cubes(
+        label_image == label, spacing=spacing, level=0, method="lorensen"
     )
 
     return skimage.measure.mesh_surface_area(verts, faces)

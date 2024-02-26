@@ -4,7 +4,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-10.15, windows-2019 ]
+        os: [ macos-11, windows-2019 ]
         python-version: [ "3.8" ]
       fail-fast: false
     steps:
@@ -17,17 +17,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: setup.py
-      - uses: actions/setup-java@v1
+      - uses: actions/setup-java@v3
         name: Install Java
         with:
-          java-version: '14.0.1' # The JDK version to make available on the path.
+          distribution: "temurin"
+          java-version: "11" # The JDK version to make available on the path.
           java-package: jdk
           architecture: x64
+
       - name: Install build-time dependencies
         run: |
           pip install --upgrade wheel pip
           pip install setuptools==49
-          pip install numpy==1.20.1
+          pip install numpy==1.23.1
           pip install pyinstaller==4.10
           pip install imageio==2.9.0
       - env:
@@ -39,7 +41,7 @@ jobs:
         run: |
           brew install mysql
           brew install create-dmg
-          pip install centrosome==1.2.0 --no-cache-dir --no-build-isolation
+          pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
@@ -47,13 +49,14 @@ jobs:
           cd ..
           pip install --editable . --no-use-pep517
       - env:
-          JDK_HOME: C:\hostedtoolcache\windows\jdk\14.0.1\x64
+          JDK_HOME: C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk\11.0.20-8\x64
         if: ${{ matrix.os == 'windows-2019' }}
         name: Windows dependency install
         run: |
+          python -m pip install --upgrade pip setuptools wheel
           pip install cython
           pip install mysqlclient==1.4.6
-          pip install centrosome==1.2.0 --no-cache-dir --no-build-isolation
+          pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
@@ -75,8 +78,8 @@ jobs:
         name: Windows pyinstaller build and package
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
-          iscc /dMyAppVersion="4.2.10002-ai" "distribution/windows/cellprofiler.iss"
-      - if: ${{ matrix.os == 'macos-10.15' }}
+          iscc /dMyAppVersion="4.2.10006-ai" "distribution/windows/cellprofiler.iss"
+      - if: ${{ matrix.os == 'macos-11' }}
         name: MacOS pyinstaller build and package
         run: |
           pyinstaller -y ./distribution/macos/CellProfiler.spec
@@ -89,20 +92,20 @@ jobs:
             --icon "CellProfiler+AI.app" 260 250 \
             --app-drop-link 540 250 \
             --hdiutil-quiet \
-            "./dist/CellProfiler-macOS-4.2.10002-ai.dmg" \
+            "./dist/CellProfiler-macOS-4.2.10006-ai.dmg" \
             "./dist/CellProfiler+AI.app"
-      - if: ${{ matrix.os == 'macos-10.15' }}
+      - if: ${{ matrix.os == 'macos-11' }}
         uses: actions/upload-artifact@v1
         name: MacOS artifact upload
         with:
-          name: CellProfiler-macOS-4.2.10002-ai.dmg
-          path: ./dist/CellProfiler-macOS-4.2.10002-ai.dmg
+          name: CellProfiler-macOS-4.2.10006-ai.dmg
+          path: ./dist/CellProfiler-macOS-4.2.10006-ai.dmg
       - if: ${{ matrix.os == 'windows-2019' }}
         uses: actions/upload-artifact@v2
         name: Windows artifact upload
         with:
-          name: CellProfiler-Windows-4.2.10002-ai.exe
-          path: ./distribution/windows/Output/CellProfiler-Windows-4.2.10002-ai.exe
+          name: CellProfiler-Windows-4.2.10006-ai.exe
+          path: ./distribution/windows/Output/CellProfiler-Windows-4.2.10006-ai.exe
   upload:
     name: upload
     needs: build
@@ -121,27 +124,27 @@ jobs:
           tag_name: ${{ github.ref }}
       - uses: actions/download-artifact@v1
         with:
-          name: CellProfiler-macOS-4.2.10002-ai.dmg
+          name: CellProfiler-macOS-4.2.10006-ai.dmg
           path: ./
       - uses: actions/download-artifact@v1
         with:
-          name: CellProfiler-Windows-4.2.10002-ai.exe
+          name: CellProfiler-Windows-4.2.10006-ai.exe
           path: ./
       - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: actions/upload-release-asset@v1
         with:
           asset_content_type: application/zip
-          asset_name: CellProfiler-macOS-4.2.10002-ai.dmg
-          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-macOS-4.2.10002-ai.dmg
+          asset_name: CellProfiler-macOS-4.2.10006-ai.dmg
+          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-macOS-4.2.10006-ai.dmg
           upload_url: ${{ steps.create_release.outputs.upload_url }}
       - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: actions/upload-release-asset@v1
         with:
           asset_content_type: application/exe
-          asset_name: CellProfiler-Windows-4.2.10002-ai.exe
-          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-Windows-4.2.10002-ai.exe
+          asset_name: CellProfiler-Windows-4.2.10006-ai.exe
+          asset_path: /home/runner/work/CellProfiler/CellProfiler/CellProfiler-Windows-4.2.10006-ai.exe
           upload_url: ${{ steps.create_release.outputs.upload_url }}
 name: create-release
 on:
