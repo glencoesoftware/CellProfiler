@@ -1,12 +1,24 @@
+#################################
+#
+# Imports from useful Python libraries
+#
+#################################
+
 import numpy
 import os
-from skimage.transform import resize
-import importlib.metadata
+import skimage
+import logging
+
+#################################
+#
+# Imports from CellProfiler
+#
+##################################
 
 from cellprofiler_core.image import Image
 from cellprofiler_core.module.image_segmentation import ImageSegmentation
 from cellprofiler_core.object import Objects
-from cellprofiler_core.setting import Binary
+from cellprofiler_core.setting import Binary, ValidationError
 from cellprofiler_core.setting.choice import Choice
 from cellprofiler_core.setting.do_something import DoSomething
 from cellprofiler_core.setting.subscriber import ImageSubscriber
@@ -14,8 +26,8 @@ from cellprofiler_core.setting.text import Integer, ImageName, Directory, Filena
 
 CUDA_LINK = "https://pytorch.org/get-started/locally/"
 Cellpose_link = " https://doi.org/10.1038/s41592-020-01018-x"
-Omnipose_link = "https://doi.org/10.1101/2021.11.03.467199"
-cellpose_ver = importlib.metadata.version('cellpose')
+LOGGER = logging.getLogger(__name__)
+
 
 __doc__ = f"""\
 RunCellpose
@@ -29,28 +41,20 @@ The module accepts greyscale input images and produces an object set. Probabilit
 Loading in a model will take slightly longer the first time you run it each session. When evaluating
 performance you may want to consider the time taken to predict subsequent images.
 
-This module now also supports Ominpose. Omnipose builds on Cellpose, for the purpose of **RunCellpose** it adds 2 additional
-features: additional models; bact-omni and cyto2-omni which were trained using the Omnipose architechture, and bact
-and the mask reconstruction algorithm for Omnipose that was created to solve over-segemnation of large cells; useful for bacterial cells,
-but can be used for other arbitrary and anisotropic shapes. You can mix and match Omnipose models with Cellpose style masking or vice versa.
-
 The module has been updated to be compatible with the latest release of Cellpose. From the old version of the module the 'cells' model corresponds to 'cyto2' model.
 
 Installation:
 
-It is necessary that you have installed Cellpose version >= 1.0.2
+It is necessary that you have installed Cellpose version >= 3.0.5
 
 You'll want to run `pip install cellpose` on your CellProfiler Python environment to setup Cellpose. If you have an older version of Cellpose
 run 'python -m pip install cellpose --upgrade'.
 
-To use Omnipose models, and mask reconstruction method you'll want to install Omnipose 'pip install omnipose' and Cellpose version 1.0.2 'pip install cellpose==1.0.2'.
-
 On the first time loading into CellProfiler, Cellpose will need to download some model files from the internet. This
 may take some time. If you want to use a GPU to run the model, you'll need a compatible version of PyTorch and a
-supported GPU. Instructions are avaiable at this link: {CUDA_LINK}
+supported GPU. Instructions are available at this link: {CUDA_LINK}
 
 Stringer, C., Wang, T., Michaelos, M. et al. Cellpose: a generalist algorithm for cellular segmentation. Nat Methods 18, 100–106 (2021). {Cellpose_link}
-Kevin J. Cutler, Carsen Stringer, Paul A. Wiggins, Joseph D. Mougous. Omnipose: a high-precision morphology-independent solution for bacterial cell segmentation. bioRxiv 2021.11.03.467199. {Omnipose_link}
 ============ ============ ===============
 Supports 2D? Supports 3D? Respects masks?
 ============ ============ ===============
@@ -58,11 +62,17 @@ YES          YES          NO
 ============ ============ ===============
 
 """
+MODEL_NAMES = [
+    "cyto3", "nuclei", "cyto2_cp3", "tissuenet_cp3", "livecell_cp3", "yeast_PhC_cp3",
+    "yeast_BF_cp3", "bact_phase_cp3", "bact_fluor_cp3", "deepbacs_cp3", "cyto2", "cyto"
+]
+
+DENOISER_NAMES = ['denoise_cyto3', 'deblur_cyto3', 'upsample_cyto3',
+                  'denoise_nuclei', 'deblur_nuclei', 'upsample_nuclei']
 
 
-MODEL_NAMES = ['cyto', 'nuclei', 'tissuenet', 'livecell', 'cyto2', 'general',
-               'CP', 'CPx', 'TN1', 'TN2', 'TN3', 'LC1', 'LC2', 'LC3', 'LC4',
-               'custom']
+# Only these models support size scaling
+SIZED_MODELS = {"cyto3", "cyto2", "cyto", "nuclei"}
 
 
 class RunCellpose(ImageSegmentation):
@@ -70,22 +80,30 @@ class RunCellpose(ImageSegmentation):
 
     module_name = "RunCellpose"
 
-    variable_revision_number = 3
+    # We use an artificially high revision number to denote our "fork"
+    variable_revision_number = 10
 
-    doi = {"Please cite the following when using RunCellPose:": 'https://doi.org/10.1038/s41592-020-01018-x',
-    "If you are using Omnipose also cite the following:": 'https://doi.org/10.1101/2021.11.03.467199' }
+    doi = {
+        "Please cite the following when using RunCellPose:": "https://doi.org/10.1038/s41592-020-01018-x",
+    }
 
+    def __init__(self, **kwargs):
+        super(RunCellpose, self).__init__()
+        self.current_model = None
+        self.current_model_params = None
+        self.recon_model = None
+        self.recon_model_params = None
 
     def create_settings(self):
         super(RunCellpose, self).create_settings()
 
         self.expected_diameter = Integer(
             text="Expected object diameter",
-            value=15,
+            value=30,
             minval=0,
             doc="""\
 The average diameter of the objects to be detected. Setting this to 0 will attempt to automatically detect object size.
-Note that automatic diameter mode does not work when running on 3D images.
+Note that automatic diameter mode does not work when running on 3D images or with some of the specialised models.
 
 Cellpose models come with a pre-defined object diameter. Your image will be resized during detection to attempt to
 match the diameter expected by the model. The default models have an expected diameter of ~16 pixels, if trying to
@@ -96,25 +114,20 @@ detect much smaller objects it may be more efficient to resize the image first u
         self.mode = Choice(
             text="Detection mode",
             choices=MODEL_NAMES,
-            value='cyto2',
+            value=MODEL_NAMES[0],
             doc="""\
-CellPose comes with models for detecting nuclei or cells. Alternatively, you can supply a custom-trained model
+CellPose comes with models for detecting nuclei, cells and other objects. Alternatively, you can supply a custom-trained model
 generated using the command line or Cellpose GUI. Custom models can be useful if working with unusual cell types.
+
+The "cyto3" or "nuclei" models are recommended as starting points.
 """,
         )
 
-        self.omni= Binary(
-            text="Use Omnipose for mask reconstruction",
-            value=False,
-            doc="""\
-If enabled, use omnipose mask recontruction features will be used (Omnipose installation required and CellPose >= 1.0)  """
-        )
-
-        self.do_3D= Binary(
+        self.do_3D = Binary(
             text="Use 3D",
             value=False,
             doc="""\
-If enabled, 3D specific settings will be available."""
+If enabled, 3D specific settings will be available.""",
         )
 
         self.use_gpu = Binary(
@@ -131,22 +144,14 @@ with different hardware setups.
 Note that, particularly when in 3D mode, lack of GPU memory can become a limitation. If a model crashes you may need to
 re-start CellProfiler to release GPU memory. Resizing large images prior to running them through the model can free up
 GPU memory.
-"""
-        )
-
-        self.use_averaging = Binary(
-            text="Use averaging",
-            value=True,
-            doc="""\
-If enabled, CellPose will run it's 4 inbuilt models and take a consensus to determine the results. If disabled, only a
-single model will be called to produce results. Disabling averaging is faster to run but less accurate."""
+""",
         )
 
         self.invert = Binary(
             text="Invert images",
             value=False,
             doc="""\
-If enabled the image will be inverted and also normalized. For use with fluorescence images using bact model (bact model was trained on phase images"""
+If enabled the image will be inverted and also normalized. For use with fluorescence images using bact model (bact model was trained on phase images""",
         )
 
         self.supply_nuclei = Binary(
@@ -154,12 +159,12 @@ If enabled the image will be inverted and also normalized. For use with fluoresc
             value=False,
             doc="""
 When detecting whole cells, you can provide a second image featuring a nuclear stain to assist
-the model with segmentation. This can help to split touching cells."""
+the model with segmentation. This can help to split touching cells.""",
         )
 
         self.nuclei_image = ImageSubscriber(
             "Select the nuclei image",
-            doc="Select the image you want to use as the nuclear stain."
+            doc="Select the image you want to use as the nuclear stain.",
         )
 
         self.save_probabilities = Binary(
@@ -181,7 +186,7 @@ You may want to use a higher threshold to manually generate objects.""",
             "Location of the pre-trained model file",
             doc=f"""\
 *(Used only when using a custom pre-trained model)*
-Select the location of the pre-trained CellPose model file that will be used for detection."""
+Select the location of the pre-trained CellPose model file that will be used for detection.""",
         )
 
         def get_directory_fn():
@@ -189,7 +194,8 @@ Select the location of the pre-trained CellPose model file that will be used for
             return self.model_directory.get_absolute_path()
 
         def set_directory_fn(path):
-            dir_choice, custom_path = self.model_directory.get_parts_from_path(path)
+            dir_choice, custom_path = self.model_directory.get_parts_from_path(
+                path)
 
             self.model_directory.join_parts(dir_choice, custom_path)
 
@@ -200,7 +206,7 @@ Select the location of the pre-trained CellPose model file that will be used for
             set_directory_fn=set_directory_fn,
             doc=f"""\
 *(Used only when using a custom pre-trained model)*
-This file can be generated by training a custom model withing the CellPose GUI or command line applications."""
+This file can be generated by training a custom model withing the CellPose GUI or command line applications.""",
         )
 
         self.gpu_test = DoSomething(
@@ -228,7 +234,6 @@ Similarly, decrease this threshold if cellpose is returning too many ill-shaped 
         )
 
         self.cellprob_threshold = Float(
-
             text="Cell probability threshold",
             value=0.0,
             minval=-6.0,
@@ -270,6 +275,40 @@ Minimum number of pixels per mask, can turn off by setting value to -1
 """,
         )
 
+        self.remove_edge_masks = Binary(
+            text="Remove objects that are touching the edge?",
+            value=True,
+            doc="""
+If you do not want to include any object masks that are not in full view in the image, you can have the masks that have pixels touching the the edges removed.
+The default is set to "Yes".
+""",
+        )
+
+        self.denoise = Binary(
+            text="Preprocess image before segmentation?",
+            value=False,
+            doc="""
+            If enabled, a separate Cellpose model will be used to clean the input image before segmentation.
+            Try this if your input images are blurred, noisy or otherwise need cleanup.
+        """,
+        )
+
+        self.denoise_type = Choice(
+            text="Preprocessing model",
+            choices=DENOISER_NAMES,
+            value=DENOISER_NAMES[0],
+            doc="""\
+            Model to use for preprocessing of images. An AI model can be applied to denoise, remove blur or upsample images prior to 
+            segmentation. Select nucleus models for nuclei or cyto3 models for anything else.
+            
+            'Denoise' models may help if your staining is inconsistent.
+            'Deblur' attempts to improve out-of-focus images
+            'Upsample' will attempt to resize the images so that the object sizes match the native diameter of the segmentation model.
+            
+            N.b. for upsampling it is essential that the "Expected diameter" setting is correct for the input images
+            """,
+        )
+
     def settings(self):
         return [
             self.x_name,
@@ -277,7 +316,6 @@ Minimum number of pixels per mask, can turn off by setting value to -1
             self.mode,
             self.y_name,
             self.use_gpu,
-            self.use_averaging,
             self.supply_nuclei,
             self.nuclei_image,
             self.save_probabilities,
@@ -290,74 +328,109 @@ Minimum number of pixels per mask, can turn off by setting value to -1
             self.stitch_threshold,
             self.do_3D,
             self.min_size,
-            self.omni,
             self.invert,
+            self.remove_edge_masks,
+            self.denoise,
+            self.denoise_type,
         ]
 
     def visible_settings(self):
-        if float(cellpose_ver[0:3]) >= 0.6 and int(cellpose_ver[0])<2:
-            vis_settings = [self.mode, self.omni, self.x_name]
-        else:
-            vis_settings = [self.mode, self.x_name]
 
-        if self.mode.value != 'nuclei':
+        vis_settings = [self.mode, self.x_name]
+
+        if self.mode.value != "nuclei":
             vis_settings += [self.supply_nuclei]
             if self.supply_nuclei.value:
                 vis_settings += [self.nuclei_image]
-        if self.mode.value == 'custom':
-            vis_settings += [self.model_directory, self.model_file_name,]
+        if self.mode.value == "custom":
+            vis_settings += [
+                self.model_directory,
+                self.model_file_name,
+            ]
 
-        vis_settings += [self.expected_diameter, self.cellprob_threshold, self.min_size, self.flow_threshold, self.y_name, self.invert, self.save_probabilities]
+        vis_settings += [self.expected_diameter, self.denoise]
 
-        vis_settings += [self.do_3D, self.stitch_threshold]
+        if self.denoise.value:
+            vis_settings += [self.denoise_type]
 
-        if self.do_3D.value:
-            vis_settings.remove( self.stitch_threshold)
-
+        vis_settings += [
+            self.cellprob_threshold,
+            self.min_size,
+            self.flow_threshold,
+            self.y_name,
+            self.invert,
+            self.save_probabilities
+        ]
         if self.save_probabilities.value:
             vis_settings += [self.probabilities_name]
+        vis_settings += [self.do_3D]
+        if not self.do_3D.value:
+            vis_settings += [self.stitch_threshold]
 
-        vis_settings += [self.use_averaging]
+        vis_settings += [self.remove_edge_masks]
+
+        # Our binary never has GPU support
+        # vis_settings += [self.remove_edge_masks, self.use_gpu]
+        # if self.use_gpu.value:
+        #     vis_settings += [self.gpu_test, self.manual_GPU_memory_share]
 
         return vis_settings
 
     def validate_module(self, pipeline):
         """If using custom model, validate the model file opens and works"""
-        if self.mode.value == 'custom':
+        if self.mode.value == "custom":
             model_file = self.model_file_name.value
             model_directory = self.model_directory.get_absolute_path()
             model_path = os.path.join(model_directory, model_file)
-            try:
-                open(model_path)
-            except:
-                raise ValidationError(
-                    "Failed to load custom file: %s "
-                    % model_path, self.model_file_name,
+            if not os.path.exists(model_path):
+                raise ValidationError(f"Failed to open model: {model_path}")
+
+    def load_models(self):
+        # Only load new model instances if settings have changed
+        from cellpose import models
+        if self.use_gpu.value:
+            from torch import cuda
+            cuda.set_per_process_memory_fraction(
+                self.manual_GPU_memory_share.value)
+
+        model_name = self.mode.value
+        if model_name == 'custom':
+            model_file = self.model_file_name.value
+            model_directory = self.model_directory.get_absolute_path()
+            model_name = os.path.join(model_directory, model_file)
+        model_params = (model_name, self.use_gpu.value)
+        if self.current_model_params != model_params:
+            LOGGER.info(f"Loading new model: {model_name}")
+            if model_name in SIZED_MODELS:
+                self.current_model = models.Cellpose(
+                    model_type=model_name, gpu=self.use_gpu.value)
+            else:
+                self.current_model = models.CellposeModel(
+                    model_type=model_name, gpu=self.use_gpu.value)
+            self.current_model_params = model_params
+
+        if self.denoise.value:
+            from cellpose import denoise
+            recon_params = (
+                self.denoise_type.value,
+                self.use_gpu.value,
+                self.mode.value != "nuclei" and self.supply_nuclei.value
+            )
+            if self.recon_model_params != recon_params:
+                LOGGER.info(f"Loading new denoiser: {recon_params[0]}")
+                self.recon_model = denoise.DenoiseModel(
+                    model_type=recon_params[0],
+                    gpu=recon_params[1],
+                    chan2=recon_params[2]
                 )
-            try:
-                from cellpose import models
-                model = models.CellposeModel(pretrained_model=model_path, gpu=self.use_gpu.value)
-            except:
-                raise ValidationError(
-                    "Failed to load custom model: %s "
-                    % model_path, self.model_file_name,
-                )
+            self.recon_model_params = recon_params
+        else:
+            self.recon_model = None
+            self.recon_model_params = None
 
     def run(self, workspace):
-        from cellpose import models
-        if self.mode.value != 'custom':
-            model = models.Cellpose(model_type= self.mode.value,
-                                    gpu=self.use_gpu.value)
-        else:
-            model_file = self.model_file_name.value
-            model_directory = self.model_directory.get_absolute_path()
-            model_path = os.path.join(model_directory, model_file)
-            model = models.CellposeModel(pretrained_model=model_path, gpu=self.use_gpu.value)
-
-        if self.use_gpu.value and model.torch:
-            from torch import cuda
-            cuda.set_per_process_memory_fraction(self.manual_GPU_memory_share.value)
-
+        import time
+        s = time.time()
         x_name = self.x_name.value
         y_name = self.y_name.value
         images = workspace.image_set
@@ -365,80 +438,104 @@ Minimum number of pixels per mask, can turn off by setting value to -1
         dimensions = x.dimensions
         x_data = x.pixel_data
         anisotropy = 0.0
-
         if self.do_3D.value:
-            anisotropy = x.spacing[0]/x.spacing[1]
+            anisotropy = x.spacing[0] / x.spacing[1]
+
+        diam = self.expected_diameter.value if self.expected_diameter.value > 0 else None
 
         if x.multichannel:
-            raise ValueError("Color images are not currently supported. Please provide greyscale images.")
+            raise ValueError(
+                "Color images are not currently supported. Please provide greyscale images."
+            )
 
         if self.mode.value != "nuclei" and self.supply_nuclei.value:
             nuc_image = images.get_image(self.nuclei_image.value)
             # CellPose expects RGB, we'll have a blank red channel, cells in green and nuclei in blue.
             if self.do_3D.value:
-                x_data = numpy.stack((numpy.zeros_like(x_data), x_data, nuc_image.pixel_data), axis=1)
+                x_data = numpy.stack(
+                    (numpy.zeros_like(x_data), x_data, nuc_image.pixel_data),
+                    axis=1
+                )
 
             else:
-                x_data = numpy.stack((numpy.zeros_like(x_data), x_data, nuc_image.pixel_data), axis=-1)
+                x_data = numpy.stack(
+                    (numpy.zeros_like(x_data), x_data, nuc_image.pixel_data),
+                    axis=-1
+                )
 
             channels = [2, 3]
         else:
             channels = [0, 0]
 
-        diam = self.expected_diameter.value if self.expected_diameter.value > 0 else None
+        self.load_models()
 
         try:
-            if float(cellpose_ver[0:3]) >= 0.7 and int(cellpose_ver[0])<2:
-                y_data, flows, *_ = model.eval(
+            if self.recon_model is not None:
+                input_data = self.recon_model.eval(
                     x_data,
-                    channels=channels,
                     diameter=diam,
-                    net_avg=self.use_averaging.value,
-                    do_3D=self.do_3D.value,
-                    anisotropy=anisotropy,
-                    flow_threshold=self.flow_threshold.value,
-                    cellprob_threshold=self.cellprob_threshold.value,
-                    stitch_threshold=self.stitch_threshold.value,
-                    min_size=self.min_size.value,
-                    omni=self.omni.value,
-                    invert=self.invert.value,
-            )
+                    channels=channels
+                )
+                # Upsampling models scale object diameter to a target size
+                if self.denoise_type.value == "upsample_cyto3":
+                    diam = 30
+                elif self.denoise_type.value == "upsample_nuclei":
+                    diam = 17
+                # Result only includes input channels
+                if self.mode.value != "nuclei" and self.supply_nuclei.value:
+                    channels = [0, 1]
             else:
-                y_data, flows, *_ = model.eval(
-                    x_data,
-                    channels=channels,
-                    diameter=diam,
-                    net_avg=self.use_averaging.value,
-                    do_3D=self.do_3D.value,
-                    anisotropy=anisotropy,
-                    flow_threshold=self.flow_threshold.value,
-                    cellprob_threshold=self.cellprob_threshold.value,
-                    stitch_threshold=self.stitch_threshold.value,
-                    min_size=self.min_size.value,
-                    invert=self.invert.value,
+                input_data = x_data
+
+            y_data, flows, *_ = self.current_model.eval(
+                input_data,
+                channels=channels,
+                diameter=diam,
+                do_3D=self.do_3D.value,
+                anisotropy=anisotropy,
+                flow_threshold=self.flow_threshold.value,
+                cellprob_threshold=self.cellprob_threshold.value,
+                stitch_threshold=self.stitch_threshold.value,
+                min_size=self.min_size.value,
+                invert=self.invert.value,
             )
 
-            y = Objects()
-            y.segmented = y_data
+            if self.denoise.value and "upsample" in self.denoise_type.value:
+                y_data = skimage.transform.resize(y_data, x.pixel_data.shape,
+                                                  preserve_range=True, order=0)
 
-        except Exception as a:
-                    print(f"Unable to create masks. Check your module settings. {a}")
+            if self.remove_edge_masks:
+                from cellpose.utils import remove_edge_masks
+                y_data = remove_edge_masks(y_data)
+
         finally:
-            if self.use_gpu.value and model.torch:
+            if self.use_gpu.value:
                 # Try to clear some GPU memory for other worker processes.
                 try:
+                    from torch import cuda
                     cuda.empty_cache()
                 except Exception as e:
-                    print(f"Unable to clear GPU memory. You may need to restart CellProfiler to change models. {e}")
+                    print(
+                        f"Unable to clear GPU memory. You may need to restart CellProfiler to change models. {e}")
 
+        y = Objects()
+        y.segmented = y_data
         y.parent_image = x.parent_image
         objects = workspace.object_set
         objects.add_objects(y, y_name)
 
+        if self.denoise.value and self.show_window:
+            # Need to remove unnecessary extra axes
+            denoised_image = numpy.squeeze(input_data)
+            if "upsample" in self.denoise_type.value:
+                denoised_image = skimage.transform.resize(
+                    denoised_image, x_data.shape)
+            workspace.display_data.recon = denoised_image
+
         if self.save_probabilities.value:
             # Flows come out sized relative to CellPose's inbuilt model size.
             # We need to slightly resize to match the original image.
-            size_corrected = resize(flows[2], y_data.shape)
+            size_corrected = skimage.transform.resize(flows[2], y_data.shape)
             prob_image = Image(
                 size_corrected,
                 parent_image=x.parent_image,
@@ -453,6 +550,8 @@ Minimum number of pixels per mask, can turn off by setting value to -1
 
         self.add_measurements(workspace)
 
+        LOGGER.critical(f"Completed in {time.time() - s}")
+
         if self.show_window:
             if x.volumetric:
                 # Can't show CellPose-accepted colour images in 3D
@@ -463,62 +562,96 @@ Minimum number of pixels per mask, can turn off by setting value to -1
             workspace.display_data.dimensions = dimensions
 
     def display(self, workspace, figure):
-        if self.save_probabilities.value:
+        if self.save_probabilities.value or self.denoise.value:
             layout = (2, 2)
         else:
             layout = (2, 1)
+
+        # Fill out the plots as needed
+        positions = [(1, 1), (0, 1), (1, 0), (0, 0)]
 
         figure.set_subplots(
             dimensions=workspace.display_data.dimensions, subplots=layout
         )
 
+        x, y = positions.pop()
         figure.subplot_imshow(
             colormap="gray",
             image=workspace.display_data.x_data,
             title="Input Image",
-            x=0,
-            y=0,
+            x=x,
+            y=y,
         )
 
-        figure.subplot_imshow_labels(
-            image=workspace.display_data.y_data,
-            sharexy=figure.subplot(0, 0),
-            title=self.y_name.value,
-            x=1,
-            y=0,
-        )
+        if self.denoise.value:
+            x, y = positions.pop()
+            figure.subplot_imshow(
+                colormap="gray",
+                image=workspace.display_data.recon,
+                sharexy=figure.subplot(0, 0),
+                title="Reconstructed image",
+                x=x,
+                y=y,
+            )
+
         if self.save_probabilities.value:
+            x, y = positions.pop()
             figure.subplot_imshow(
                 colormap="gray",
                 image=workspace.display_data.probabilities,
                 sharexy=figure.subplot(0, 0),
                 title=self.probabilities_name.value,
-                x=0,
-                y=1,
+                x=x,
+                y=y,
             )
+
+        x, y = positions.pop()
+        figure.subplot_imshow_labels(
+            image=workspace.display_data.y_data,
+            sharexy=figure.subplot(0, 0),
+            title=self.y_name.value,
+            x=x,
+            y=y,
+        )
 
     def do_check_gpu(self):
         from cellpose import core
-        import importlib.util
-        torch_installed = importlib.util.find_spec('torch') is not None
-        #if the old version of cellpose <2.0, then use istorch kwarg
-        if float(cellpose_ver[0:3]) >= 0.7 and int(cellpose_ver[0])<2:
-            GPU_works = core.use_gpu(istorch=torch_installed)
-        else: #if new version of cellpose, use use_torch kwarg
-            GPU_works = core.use_gpu(use_torch=torch_installed)
+        GPU_works = core.use_gpu()
         if GPU_works:
             message = "GPU appears to be working correctly!"
         else:
-            message = "GPU test failed. There may be something wrong with your configuration."
+            message = (
+                "GPU test failed. There may be something wrong with your configuration."
+            )
         import wx
         wx.MessageBox(message, caption="GPU Test")
 
-
-    def upgrade_settings(self, setting_values, variable_revision_number, module_name):
+    def upgrade_settings(self, setting_values, variable_revision_number,
+                         module_name):
+        if variable_revision_number == 10:
+            return setting_values, variable_revision_number
+        elif variable_revision_number > 4:
+            raise ValueError(
+                "Module comes from a newer version of the "
+                "Broad CellPose plugin. Please use the Glencoe version.")
         if variable_revision_number == 1:
-            setting_values = setting_values+["0.4", "0.0"]
+            setting_values = setting_values + ["0.4", "0.0"]
             variable_revision_number = 2
         if variable_revision_number == 2:
-            setting_values = setting_values + ["0.0", False, "15", "1.0", False, False]
+            setting_values = setting_values + ["0.0", False, "15", "1.0",
+                                               False, False]
             variable_revision_number = 3
+        if variable_revision_number == 3:
+            setting_values = ([setting_values[0]] + [
+                "Python", "CELLPOSE_DOCKER_IMAGE_WITH_PRETRAINED"] +
+                              setting_values[1:])
+            variable_revision_number = 4
+        if variable_revision_number == 4:
+            # Remove bad arguments
+            for index in (20, 7, 2, 1):
+                del setting_values[index]
+            setting_values += [False, DENOISER_NAMES[0]]
+            setting_values[4] = False
+            variable_revision_number = 10
+
         return setting_values, variable_revision_number
