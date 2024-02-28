@@ -429,8 +429,6 @@ The default is set to "Yes".
             self.recon_model_params = None
 
     def run(self, workspace):
-        import time
-        s = time.time()
         x_name = self.x_name.value
         y_name = self.y_name.value
         images = workspace.image_set
@@ -549,8 +547,6 @@ The default is set to "Yes".
                 workspace.display_data.probabilities = size_corrected
 
         self.add_measurements(workspace)
-
-        LOGGER.critical(f"Completed in {time.time() - s}")
 
         if self.show_window:
             if x.volumetric:
