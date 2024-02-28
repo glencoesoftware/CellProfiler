@@ -21,7 +21,7 @@ jobs:
         name: Install Java
         with:
           distribution: "temurin"
-          java-version: "11" # The JDK version to make available on the path.
+          java-version: "14.0.1" # The JDK version to make available on the path.
           java-package: jdk
           architecture: x64
 
@@ -31,7 +31,7 @@ jobs:
           pip install setuptools==49
           pip install numpy==1.23.1
           pip install pyinstaller==4.10
-          pip install imageio==2.9.0
+          pip install imageio==2.34.0
       - env:
           LDFLAGS: -L/usr/local/opt/openssl/lib
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
@@ -65,13 +65,13 @@ jobs:
           pip install --editable . --no-use-pep517
       - name: Install plugins
         run: |
-          pip install torch==1.11.0
-          pip install cellpose==2.1.0
-          pip install csbdeep==0.7.2
-          pip install stardist==0.8.1
-          pip install tensorflow==2.10.0
+          pip install torch==2.2.1
+          pip install cellpose==3.0.5
+          pip install csbdeep==0.7.4
+          pip install stardist==0.8.5
+          pip install tensorflow==2.13.1
           pip install markupsafe==2.0.1
-          pip install h5py==3.2.1
+          pip install h5py==3.6.0
       - name: Display installed packages
         run: pip list
       - if: ${{ matrix.os == 'windows-2019' }}
