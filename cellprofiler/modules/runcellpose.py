@@ -41,7 +41,10 @@ The module accepts greyscale input images and produces an object set. Probabilit
 Loading in a model will take slightly longer the first time you run it each session. When evaluating
 performance you may want to consider the time taken to predict subsequent images.
 
-The module has been updated to be compatible with the latest release of Cellpose. From the old version of the module the 'cells' model corresponds to 'cyto2' model.
+The module has been updated to be compatible with the latest release of Cellpose. From the old version of the module the 'cells' model corresponds to 'cyto3' model.
+
+This module's dependencies are loaded on demand (lazy loading), meaning that the first time you try to run it will take 
+much longer than usual.
 
 Installation:
 
@@ -308,6 +311,17 @@ The default is set to "Yes".
             N.b. for upsampling it is essential that the "Expected diameter" setting is correct for the input images
             """,
         )
+        self.cache_model = Binary(
+            text="Cache model between image sets",
+            value=True,
+            doc=f"""\
+        If True, the AI model will be maintained between image sets. If False,
+        memory will be released. Caching can improve performance by avoiding 
+        the need to load the model for each image set. You may need to disable
+        this setting if running multiple AI models in your pipeline, 
+        particularly if using a GPU with limited memory.
+        """,
+        )
 
     def settings(self):
         return [
@@ -332,6 +346,7 @@ The default is set to "Yes".
             self.remove_edge_masks,
             self.denoise,
             self.denoise_type,
+            self.cache_model,
         ]
 
     def visible_settings(self):
@@ -367,7 +382,7 @@ The default is set to "Yes".
         if not self.do_3D.value:
             vis_settings += [self.stitch_threshold]
 
-        vis_settings += [self.remove_edge_masks]
+        vis_settings += [self.remove_edge_masks, self.cache_model]
 
         # Our binary never has GPU support
         # vis_settings += [self.remove_edge_masks, self.use_gpu]
@@ -515,6 +530,10 @@ The default is set to "Yes".
                 except Exception as e:
                     print(
                         f"Unable to clear GPU memory. You may need to restart CellProfiler to change models. {e}")
+            if not self.cache_model.value:
+                # Release the model's memory
+                self.current_model = None
+                self.current_model_params = None
 
         y = Objects()
         y.segmented = y_data
@@ -624,7 +643,7 @@ The default is set to "Yes".
 
     def upgrade_settings(self, setting_values, variable_revision_number,
                          module_name):
-        if variable_revision_number == 10:
+        if variable_revision_number == 11:
             return setting_values, variable_revision_number
         elif variable_revision_number > 4:
             raise ValueError(
@@ -646,7 +665,7 @@ The default is set to "Yes".
             # Remove bad arguments
             for index in (20, 7, 2, 1):
                 del setting_values[index]
-            setting_values += [False, DENOISER_NAMES[0]]
+            setting_values += [False, DENOISER_NAMES[0], True]
             setting_values[4] = False
             variable_revision_number = 10
 
