@@ -154,3 +154,6 @@ on:
       - compat-4-2-ai
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - compat-4-2-ai
