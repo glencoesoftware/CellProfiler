@@ -643,12 +643,13 @@ The default is set to "Yes".
 
     def upgrade_settings(self, setting_values, variable_revision_number,
                          module_name):
-        if variable_revision_number == 11:
+        if variable_revision_number == 10:
+            # We're not upgrading from the CellPose 1-2 version
             return setting_values, variable_revision_number
         elif variable_revision_number > 4:
             raise ValueError(
                 "Module comes from a newer version of the "
-                "Broad CellPose plugin. Please use the Glencoe version.")
+                "Broad CellPose plugin. Please use the Glencoe variant.")
         if variable_revision_number == 1:
             setting_values = setting_values + ["0.4", "0.0"]
             variable_revision_number = 2
@@ -668,5 +669,4 @@ The default is set to "Yes".
             setting_values += [False, DENOISER_NAMES[0], True]
             setting_values[4] = False
             variable_revision_number = 10
-
         return setting_values, variable_revision_number
