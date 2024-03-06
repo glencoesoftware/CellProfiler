@@ -21,7 +21,7 @@ jobs:
         name: Install Java
         with:
           distribution: "temurin"
-          java-version: "14.0.1" # The JDK version to make available on the path.
+          java-version: "11" # The JDK version to make available on the path.
           java-package: jdk
           architecture: x64
 
