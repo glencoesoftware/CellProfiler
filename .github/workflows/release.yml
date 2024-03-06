@@ -49,7 +49,7 @@ jobs:
           cd ..
           pip install --editable . --no-use-pep517
       - env:
-          JDK_HOME: C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk\11.0.20-8\x64
+          JDK_HOME: ${{ env.JAVA_HOME }}
         if: ${{ matrix.os == 'windows-2019' }}
         name: Windows dependency install
         run: |
