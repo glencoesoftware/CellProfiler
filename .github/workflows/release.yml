@@ -34,7 +34,6 @@ jobs:
           pip install pyinstaller==4.10
           pip install imageio==2.34.0
           pip install cython
-          pip install mysqlclient==2.0.3
       - env:
           LDFLAGS: -L/usr/local/opt/openssl/lib
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
@@ -44,6 +43,7 @@ jobs:
         run: |
           brew install mysql
           brew install create-dmg
+          pip install mysqlclient==2.0.3
           pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
@@ -57,6 +57,7 @@ jobs:
         name: Windows dependency install
         run: |
           python -m pip install --upgrade pip setuptools wheel
+          pip install mysqlclient==2.0.3
           pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
