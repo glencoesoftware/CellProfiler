@@ -102,12 +102,18 @@ jobs:
             --text-size 14 \
             --icon "CellProfiler+AI.app" 260 250 \
             --app-drop-link 540 250 \
-            --hdiutil-quiet \
+            --hdiutil-verbose \
             "./dist/CellProfiler-macOS-4.2.10006-ai.dmg" \
             "./dist/CellProfiler+AI.app"
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v1
-        name: MacOS artifact upload
+        name: MacOS app upload
+        with:
+          name: CellProfiler+AI.app
+          path: ./dist/CellProfiler+AI.app
+      - if: startsWith(matrix.os, 'macos')
+        uses: actions/upload-artifact@v1
+        name: MacOS dmg upload
         with:
           name: CellProfiler-macOS-4.2.10006-ai.dmg
           path: ./dist/CellProfiler-macOS-4.2.10006-ai.dmg
