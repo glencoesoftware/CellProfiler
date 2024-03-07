@@ -42,6 +42,7 @@ jobs:
         name: MacOS dependency install
         run: |
           brew install mysql@8.0
+          brew link mysql@8.0
           brew install create-dmg
           pip install mysqlclient==2.0.3
           pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
