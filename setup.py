@@ -89,7 +89,7 @@ setuptools.setup(
         "scipy==1.9.0",
         "six",
         "tifffile==2023.2.3",
-        "wxPython==4.1.0",
+        "wxPython==4.2.1",
     ],
     license="BSD",
     name="CellProfiler",
