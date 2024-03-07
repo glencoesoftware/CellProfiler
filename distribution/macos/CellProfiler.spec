@@ -18,6 +18,7 @@ datas += PyInstaller.utils.hooks.collect_data_files("javabridge")
 datas += PyInstaller.utils.hooks.collect_data_files("prokaryote")
 datas += PyInstaller.utils.hooks.collect_data_files("skimage.io._plugins")
 datas += PyInstaller.utils.hooks.collect_data_files('skimage', includes=['**/orb_descriptor_positions.txt'])
+datas += PyInstaller.utils.hooks.collect_data_files('functorch')
 
 datas += [
     ("../../cellprofiler/data/images/*", "cellprofiler/data/images"),
@@ -63,6 +64,7 @@ hiddenimports += [
     "sentry_sdk.integrations.stdlib",
     "sentry_sdk.integrations.modules",
     "sentry_sdk.integrations.threading",
+    "functorch"
 ]
 
 print(f"De-duplicating {len(hiddenimports)} hidden imports...")
