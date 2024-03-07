@@ -442,7 +442,7 @@ Prevent overlapping
         if variable_revision_number == 1:
             setting_values.append(True)
             variable_revision_number = 2
-            return setting_values, variable_revision_number
+        return setting_values, variable_revision_number
 
     def do_check_gpu(self):
         import tensorflow
