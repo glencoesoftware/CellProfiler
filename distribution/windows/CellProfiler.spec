@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import os
 import os.path
+import sys
 
-import PyInstaller.compat
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 import PyInstaller.utils.hooks
 
 binaries = []

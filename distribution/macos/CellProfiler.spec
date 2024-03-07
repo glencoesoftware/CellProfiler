@@ -6,6 +6,10 @@ import PyInstaller.utils.hooks
 
 from cellprofiler import __version__ as cp_version
 
+import sys
+
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+
 binaries = []
 
 block_cipher = None
