@@ -90,6 +90,10 @@ jobs:
         name: MacOS pyinstaller build and package
         run: |
           pyinstaller -y ./distribution/macos/CellProfiler.spec
+      - if: startsWith(matrix.os, 'macos')
+        name: MacOS dmg package
+        continue-on-error: true
+        run: |
           create-dmg \
             --volname "CellProfiler" \
             --window-pos 200 120 \
