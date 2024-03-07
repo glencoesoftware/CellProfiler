@@ -74,7 +74,7 @@ setuptools.setup(
         "mahotas==1.4.13",
         "markupsafe==2.0.1",
         "matplotlib==3.1.3",
-        "mysqlclient==1.4.6",
+        "mysqlclient==2.0.3",
         "numpy==1.23.1",
         "opencv-python-headless==4.5.3.56",
         "Pillow==8.3.2",
