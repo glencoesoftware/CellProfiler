@@ -93,7 +93,7 @@ jobs:
         run: |
           cd dist
           echo Creating DMG
-          create-dmg 'CellProfiler+AI.app' --dmg-title "CellProfiler+AI.dmg"
+          create-dmg 'CellProfiler+AI.app' --identity "Mac Developer" --dmg-title "CellProfiler+AI.dmg"
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v1
         name: MacOS dmg upload
