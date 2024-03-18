@@ -94,6 +94,10 @@ jobs:
         name: MacOS dmg package
         continue-on-error: true
         run: |
+          # This is bad, but large dmgs fail to reliably unmount
+          echo Killing XProtect
+          sudo pkill -9 XProtect
+          echo Creating DMG
           create-dmg \
             --volname "CellProfiler" \
             --window-pos 200 120 \
