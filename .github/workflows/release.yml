@@ -93,19 +93,19 @@ jobs:
         run: |
           cd dist
           echo Creating DMG
-          create-dmg 'CellProfiler+AI.app' --identity "Mac Developer" --dmg-title "CellProfiler+AI.dmg"
+          create-dmg 'CellProfiler+AI.app' --dmg-title "CellProfiler+AI.dmg"
       - if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         name: MacOS dmg upload
         with:
           name: CellProfiler-macOS-4.2.10006-ai.dmg
-          path: ./dist/CellProfiler+AI.dmg
+          path: ./dist/*.dmg
       - if: startsWith(matrix.os, 'windows')
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         name: Windows artifact upload
         with:
           name: CellProfiler-Windows-4.2.10006-ai.exe
-          path: ./distribution/windows/Output/CellProfiler-Windows-4.2.10006-ai.exe
+          path: ./distribution/windows/Output/*.exe
   upload:
     name: upload
     needs: build
