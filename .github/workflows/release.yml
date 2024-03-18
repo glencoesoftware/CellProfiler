@@ -91,23 +91,15 @@ jobs:
         name: MacOS dmg package
         continue-on-error: true
         run: |
+          cd dist
           echo Creating DMG
-          create-dmg
-            "./dist/CellProfiler+AI.app" \
-            "./dist" \
-            --dmg-title "CellProfiler-macOS-4.2.10006-ai.dmg"
-      - if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v1
-        name: MacOS app upload
-        with:
-          name: CellProfiler+AI.app
-          path: ./dist/CellProfiler+AI.app
+          create-dmg 'CellProfiler+AI.app' --dmg-title "CellProfiler+AI.dmg"
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v1
         name: MacOS dmg upload
         with:
           name: CellProfiler-macOS-4.2.10006-ai.dmg
-          path: ./dist/CellProfiler-macOS-4.2.10006-ai.dmg
+          path: ./dist/CellProfiler+AI.dmg
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v2
         name: Windows artifact upload
