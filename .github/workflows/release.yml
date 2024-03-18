@@ -43,11 +43,6 @@ jobs:
         run: |
           brew install graphicsmagick imagemagick
           npm install --global create-dmg
-#          curl -L https://github.com/create-dmg/create-dmg/archive/refs/tags/v1.1.0.zip -o dmg.zip
-#          unzip dmg.zip
-#          cd create-dmg-1.1.0
-#          make install
-#          cd ..
           brew install mysql@8.0
           brew link mysql@8.0
           pip install mysqlclient==2.0.3
@@ -101,17 +96,6 @@ jobs:
             "./dist/CellProfiler+AI.app" \
             "./dist" \
             --dmg-title "CellProfiler-macOS-4.2.10006-ai.dmg"
-#          create-dmg \
-#            --volname "CellProfiler" \
-#            --window-pos 200 120 \
-#            --window-size 800 529 \
-#            --icon-size 130 \
-#            --text-size 14 \
-#            --icon "CellProfiler+AI.app" 260 250 \
-#            --app-drop-link 540 250 \
-#            --hdiutil-verbose \
-#            "./dist/CellProfiler-macOS-4.2.10006-ai.dmg" \
-#            "./dist/CellProfiler+AI.app"
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v1
         name: MacOS app upload
