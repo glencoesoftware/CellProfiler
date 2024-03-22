@@ -67,6 +67,7 @@ jobs:
           pip install --editable . --upgrade --no-use-pep517
           cd ..
           pip install --editable . --no-use-pep517
+          pip install wxpython==4.2.0
       - name: Install plugins
         run: |
           pip install torch==2.2.1
