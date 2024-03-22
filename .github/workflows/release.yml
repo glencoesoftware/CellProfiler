@@ -83,6 +83,7 @@ jobs:
         name: Windows pyinstaller build and package
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
+          rm ./dist/CellProfiler/jvm.dll
           iscc /dMyAppVersion="4.2.10006-ai" "distribution/windows/cellprofiler.iss"
       - if: startsWith(matrix.os, 'macos')
         name: MacOS pyinstaller build and package
