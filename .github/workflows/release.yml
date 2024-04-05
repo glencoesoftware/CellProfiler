@@ -34,6 +34,7 @@ jobs:
           pip install pyinstaller==5.13.2
           pip install imageio==2.34.0
           pip install cython
+          pip install lxml
       - env:
           LDFLAGS: -L/usr/local/opt/openssl/lib
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
