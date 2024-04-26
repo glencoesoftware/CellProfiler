@@ -1,10 +1,19 @@
+#################################
+#
+# Imports from useful Python libraries
+#
+#################################
+
 import os
-from pathlib import Path
-
+import pathlib
 from skimage.transform import resize
-
-import csbdeep.models.pretrained
 from csbdeep.utils import normalize
+
+#################################
+#
+# Imports from CellProfiler
+#
+##################################
 
 from cellprofiler_core.image import Image
 from cellprofiler_core.module.image_segmentation import ImageSegmentation
@@ -18,24 +27,23 @@ from cellprofiler_core.setting.text import Integer, ImageName, Directory, Float
 # Monkey patch csbdeep to avoid re-extracting models on each run and allow
 # specification of a custom cache dir with KERAS_CACHE_DIR.
 def patched_get_model_folder(cls, key_or_alias):
+    import csbdeep
     key, alias, m = csbdeep.models.pretrained.get_model_details(
         cls, key_or_alias)
-    target = str(Path('models') / cls.__name__ / key)
+    target = str(pathlib.Path('models') / cls.__name__ / key)
     cache_dir = os.environ.get('KERAS_CACHE_DIR',
                                os.path.join(os.path.expanduser('~'), '.keras'))
     expected_dir = os.path.join(cache_dir, target)
     if os.path.exists(expected_dir) and len(os.listdir(expected_dir)) > 1:
-        return Path(expected_dir)
+        return pathlib.Path(expected_dir)
     else:
         from keras.utils import get_file
-        path = Path(
+        path = pathlib.Path(
             get_file(fname=key+'.zip', origin=m['url'], file_hash=m['hash'],
                      cache_subdir=target, extract=True, cache_dir=cache_dir))
         assert path.exists() and path.parent.exists()
         return path.parent
 
-
-csbdeep.models.pretrained.get_model_folder = patched_get_model_folder
 
 __doc__ = f"""\
 RunStardist
@@ -47,6 +55,9 @@ The module takes in input images and produces an object set. Probabilities can a
 
 Loading in a model will take slightly longer the first time you run it each session. When evaluating 
 performance you may want to consider the time taken to predict subsequent images.
+
+This module's dependencies are loaded on demand (lazy loading), meaning that the first time you try to run it will take 
+much longer than usual.
 
 Installation:
 This can be a little tricky because of some dependency issues. We need to take care to not break CellProfiler's 
@@ -90,11 +101,17 @@ class RunStarDist(ImageSegmentation):
 
     module_name = "RunStarDist"
 
-    variable_revision_number = 1
+    variable_revision_number = 2
 
     doi = {
-        "Please cite the following when using RunstarDist:": 'https://doi.org/10.1007/978-3-030-00934-2_30',
-        "If you are using 3D also cite the following:": 'https://doi.org/10.1109/WACV45572.2020.9093435'}
+        "Please cite the following when using RunstarDist:": "https://doi.org/10.1007/978-3-030-00934-2_30",
+        "If you are using 3D also cite the following:": "https://doi.org/10.1109/WACV45572.2020.9093435",
+    }
+
+    def __init__(self):
+        super(RunStarDist, self).__init__()
+        self.current_model = None
+        self.current_model_def = None
 
     def create_settings(self):
         super(RunStarDist, self).create_settings()
@@ -145,7 +162,7 @@ and vertical tile number.""",
             value=1,
             minval=1,
             doc="""\
-Specify the number of tiles to break the image down into along the x-axis (horizontal)."""
+Specify the number of tiles to break the image down into along the x-axis (horizontal).""",
         )
 
         self.n_tiles_y = Integer(
@@ -153,7 +170,7 @@ Specify the number of tiles to break the image down into along the x-axis (horiz
             value=1,
             minval=1,
             doc="""\
-Specify the number of tiles to break the image down into along the y-axis (vertical)."""
+Specify the number of tiles to break the image down into along the y-axis (vertical).""",
         )
 
         self.save_probabilities = Binary(
@@ -177,7 +194,7 @@ You may want to use a custom threshold to manually generate objects.""",
 *(Used only when using a custom pre-trained model)*
 
 Select the folder containing your StarDist model. This should have the config, threshold and weights files 
-exported after training."""
+exported after training.""",
         )
 
         self.gpu_test = DoSomething(
@@ -207,7 +224,6 @@ all pixels with probability above threshold kept for masks.
         )
 
         self.nms_thresh = Float(
-
             text="Overlap threshold",
             value=0.4,
             minval=0.0,
@@ -215,6 +231,17 @@ all pixels with probability above threshold kept for masks.
             doc=f"""\
 Prevent overlapping 
 """,
+        )
+        self.cache_model = Binary(
+            text="Cache model between image sets",
+            value=True,
+            doc=f"""\
+        If True, the AI model will be maintained between image sets. If False,
+        memory will be released. Caching can improve performance by avoiding 
+        the need to load the model for each image set. You may need to disable
+        this setting if running multiple AI models in your pipeline, 
+        particularly if using a GPU with limited memory.
+        """,
         )
 
     def settings(self):
@@ -232,15 +259,19 @@ Prevent overlapping
             self.model_choice3D,
             self.prob_thresh,
             self.nms_thresh,
+            self.cache_model,
         ]
 
     def visible_settings(self):
-        vis_settings = [self.x_name, self.model, ]
+        vis_settings = [
+            self.x_name,
+            self.model,
+        ]
 
-        if self.model.value == '2D':
+        if self.model.value == "2D":
             vis_settings += [self.model_choice2D]
 
-        if self.model.value == '3D':
+        if self.model.value == "3D":
             vis_settings += [self.model_choice3D]
 
         if self.model.value == CUSTOM_MODEL:
@@ -255,9 +286,39 @@ Prevent overlapping
         if self.tile_image.value:
             vis_settings += [self.n_tiles_x, self.n_tiles_y]
 
-        vis_settings += [self.prob_thresh, self.nms_thresh]
+        vis_settings += [self.prob_thresh, self.nms_thresh, self.cache_model]
 
         return vis_settings
+
+    def load_model(self, volumetric):
+        import csbdeep.models.pretrained
+        csbdeep.models.pretrained.get_model_folder = patched_get_model_folder
+        from stardist.models import StarDist2D, StarDist3D
+        if self.model.value == "2D":
+            model_ident = self.model_choice2D.value
+        elif self.model.value == "3D":
+            model_ident = self.model_choice3D.value
+        else:
+            model_ident = self.model_directory.get_absolute_path()
+        if self.current_model_def == model_ident:
+            return
+        print("Loading model", model_ident)
+        if self.model.value == "2D":
+            self.current_model = StarDist2D.from_pretrained(model_ident)
+        elif self.model.value == "3D":
+            self.current_model = StarDist3D.from_pretrained(model_ident)
+        else:
+            model_directory, model_name = os.path.split(model_ident)
+            if volumetric:
+                self.current_model = StarDist3D(
+                    config=None, basedir=model_directory, name=model_name
+                )
+            else:
+                self.current_model = StarDist2D(
+                    config=None, basedir=model_directory, name=model_name
+                )
+        self.current_model_def = model_ident
+
 
     def run(self, workspace):
         images = workspace.image_set
@@ -275,25 +336,7 @@ Prevent overlapping
             raise ValueError(
                 "Greyscale images are not supported by this model. Please provide a color overlay.")
 
-        if self.model.value == '2D':
-            from stardist.models import StarDist2D
-            model = StarDist2D.from_pretrained(self.model_choice2D.value)
-        elif self.model.value == '3D':
-            from stardist.models import StarDist3D
-            model = StarDist3D.from_pretrained(self.model_choice3D.value)
-        elif self.model.value == CUSTOM_MODEL:
-            model_directory, model_name = os.path.split(
-                self.model_directory.get_absolute_path())
-            if x.volumetric:
-                from stardist.models import StarDist3D
-                model = StarDist3D(config=None, basedir=model_directory,
-                                   name=model_name)
-            else:
-                from stardist.models import StarDist2D
-                model = StarDist2D(config=None, basedir=model_directory,
-                                   name=model_name)
-        else:
-            raise ValueError(f"Model type {self.model.value} does not exist")
+        self.load_model(x.volumetric)
 
         tiles = None
         if self.tile_image.value:
@@ -307,7 +350,7 @@ Prevent overlapping
 
         if not self.save_probabilities.value:
             # Probabilities aren't wanted, things are simple
-            data = model.predict_instances(
+            data = self.current_model.predict_instances(
                 normalize(x.pixel_data),
                 return_predict=False,
                 n_tiles=tiles,
@@ -316,7 +359,7 @@ Prevent overlapping
             )
             y_data = data[0]
         else:
-            data, probs = model.predict_instances(
+            data, probs = self.current_model.predict_instances(
                 normalize(x.pixel_data),
                 return_predict=True,
                 sparse=False,
@@ -354,6 +397,11 @@ Prevent overlapping
             workspace.display_data.y_data = y_data
             workspace.display_data.dimensions = dimensions
 
+        if not self.cache_model.value:
+            # Release the model's memory
+            self.current_model = None
+            self.current_model_def = None
+
     def display(self, workspace, figure):
         if self.save_probabilities.value:
             layout = (2, 2)
@@ -389,12 +437,21 @@ Prevent overlapping
                 y=1,
             )
 
+    def upgrade_settings(self, setting_values, variable_revision_number,
+                         module_name):
+        if variable_revision_number == 1:
+            setting_values.append(True)
+            variable_revision_number = 2
+        return setting_values, variable_revision_number
+
     def do_check_gpu(self):
         import tensorflow
         if len(tensorflow.config.list_physical_devices('GPU')) > 0:
             message = "GPU appears to be working correctly!"
             print("GPUs:", tensorflow.config.list_physical_devices('GPU'))
         else:
-            message = "GPU test failed. There may be something wrong with your configuration."
+            message = (
+                "GPU test failed. There may be something wrong with your configuration."
+            )
         import wx
         wx.MessageBox(message, caption="GPU Test")

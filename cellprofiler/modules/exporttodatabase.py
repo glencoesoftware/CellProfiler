@@ -3833,7 +3833,8 @@ CREATE TABLE %s (
                         count = measurements.get_measurement(
                             "Image", ftr_count, image_number
                         )
-                        max_count = max(max_count, int(count))
+                        if count:
+                            max_count = max(max_count, int(count))
                     column_values = []
                     for column in columns:
                         object_name, feature, coltype = column[:3]
@@ -3882,7 +3883,11 @@ CREATE TABLE %s (
 
                         for column, values in zip(columns, column_values):
                             object_name, feature, coltype = column[:3]
-                            object_row.append(values[j])
+                            if coltype == COLTYPE_VARCHAR:
+                                # String values need to be in quotes
+                                object_row.append(f"'{values[j]}'")
+                            else:
+                                object_row.append(values[j])
                         if post_group:
                             object_row.append(object_numbers[j])
                         object_rows.append(object_row)
@@ -4142,9 +4147,8 @@ CREATE TABLE %s (
         """Write the CellProfiler Analyst properties file"""
         all_properties = self.get_property_file_text(workspace)
         for properties in all_properties:
-            fid = open(properties.file_name, "wt")
-            fid.write(properties.text)
-            fid.close()
+            with open(properties.file_name, "wt") as fid:
+                fid.write(properties.text)
             if self.show_window:
                 workspace.display_data.columns.append(("Properties_File", properties.file_name))
 
@@ -4181,6 +4185,8 @@ CREATE TABLE %s (
                     self.properties[k] = v
 
         result = []
+        #Is image processed as 3D?
+        process_3D = workspace.pipeline.volumetric()
         #
         # Get appropriate object names
         #
@@ -4202,17 +4208,7 @@ CREATE TABLE %s (
         else:
             object_names = [None]
 
-        default_image_names = []
-        # Find all images that have FileName and PathName
-        image_features = [
-            c[1]
-            for c in workspace.pipeline.get_measurement_columns()
-            if c[0] == "Image"
-        ]
-        for feature in image_features:
-            match = re.match("^%s_(.+)$" % C_FILE_NAME, feature)
-            if match:
-                default_image_names.append(match.groups()[0])
+        default_image_names = self.get_image_list(workspace)
 
         if not self.properties_export_all_image_defaults:
             # Extract the user-specified images
@@ -4282,6 +4278,7 @@ CREATE TABLE %s (
                         object_count = "Image_Count_%s" % self.location_object.value
                         cell_x_loc = "%s_Location_Center_X" % self.location_object.value
                         cell_y_loc = "%s_Location_Center_Y" % self.location_object.value
+                        cell_z_loc = "%s_Location_Center_Z" % self.location_object.value
                     elif self.separate_object_tables == OT_PER_OBJECT:
                         cell_tables = "%sPer_%s" % (
                             self.get_table_prefix(),
@@ -4293,6 +4290,7 @@ CREATE TABLE %s (
                         object_count = "Image_Count_%s" % object_name
                         cell_x_loc = "%s_Location_Center_X" % object_name
                         cell_y_loc = "%s_Location_Center_Y" % object_name
+                        cell_z_loc = "%s_Location_Center_Z" % object_name
             else:
                 """If object_name = None, it's either per_image only or a view """
                 if self.objects_choice == O_NONE:
@@ -4303,6 +4301,7 @@ CREATE TABLE %s (
                     object_count = ""
                     cell_x_loc = ""
                     cell_y_loc = ""
+                    cell_z_loc = ""
                 elif self.separate_object_tables == OT_VIEW:
                     cell_tables = "%sPer_Object" % (self.get_table_prefix())
                     object_id = C_OBJECT_NUMBER
@@ -4311,6 +4310,7 @@ CREATE TABLE %s (
                     object_count = "Image_Count_%s" % self.location_object.value
                     cell_x_loc = "%s_Location_Center_X" % self.location_object.value
                     cell_y_loc = "%s_Location_Center_Y" % self.location_object.value
+                    cell_z_loc = "%s_Location_Center_Z" % self.location_object.value
 
             file_name = self.make_full_filename(filename, workspace)
             unique_id = C_IMAGE_NUMBER
@@ -4587,6 +4587,8 @@ timepoint_id  = Image_Group_Index
 # object within an image.
 cell_x_loc    = {cell_x_loc}
 cell_y_loc    = {cell_y_loc}
+cell_z_loc    = {cell_z_loc}
+
 # ==== Image Path and File Name Columns ====
 # Classifier needs to know where to find the images from your experiment.
 # Specify the column names from your per-image table that contain the image
@@ -4761,6 +4763,15 @@ force_bioformats = no
 
 use_legacy_fetcher = no
 
+
+# ======== Process as 3D (visualize a different z position per object) ========
+# OPTIONAL
+# [yes/no]  In 3D datasets, this optionally displays in CPA classifier a separate
+# z slice for each object depending on that object's center position in z. Useful
+# for classifying cells from 3D data.
+
+process_3D = {process_3D}
+
     """ % (
                 locals()
             )
@@ -4770,6 +4781,9 @@ use_legacy_fetcher = no
     def record_image_channels(self, workspace):
         # We only have access to the image details during the run itself.
         # Fetch out the images we want in the properties file and log their channel counts.
+        if not workspace.measurements.hdf5_dict.has_feature("Experiment", "ExportToDb_Images"):
+            image_list = self.get_image_list(workspace)
+            workspace.measurements.add_experiment_measurement("ExportToDb_Images", image_list)
         image_list = workspace.measurements.get_experiment_measurement("ExportToDb_Images")
         channel_list = []
         if isinstance(image_list, str):
@@ -4930,6 +4944,20 @@ CP version : %d\n""" % int(
         object_name - name of object or "Image", "Object" or "Well"
         """
         return self.get_table_prefix() + "Per_" + object_name
+
+    def get_image_list(self,workspace):
+        default_image_names = []
+        # Find all images that have FileName and PathName
+        image_features = [
+            c[1]
+            for c in workspace.pipeline.get_measurement_columns()
+            if c[0] == "Image"
+        ]
+        for feature in image_features:
+            match = re.match("^%s_(.+)$" % C_FILE_NAME, feature)
+            if match:
+                default_image_names.append(match.groups()[0])
+        return default_image_names
 
     def get_pipeline_measurement_columns(
         self, pipeline, image_set_list, remove_postgroup_key=False
