@@ -102,7 +102,9 @@ jobs:
         name: MacOS dmg upload
         with:
           name: CellProfiler-macOS-4.2.60001-ai.dmg
-          path: ./dist/*.dmg
+          path: |
+            ./dist/*.dmg
+            ./dist/*.app
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v4
         name: Windows artifact upload
