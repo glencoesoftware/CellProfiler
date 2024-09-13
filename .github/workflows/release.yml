@@ -87,7 +87,7 @@ jobs:
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
           rm ./dist/CellProfiler/jvm.dll
-          iscc /dMyAppVersion="4.2.70001-ai" "distribution/windows/cellprofiler.iss"
+          iscc /dMyAppVersion="4.2.80001-ai" "distribution/windows/cellprofiler.iss"
       - if: startsWith(matrix.os, 'macos')
         name: MacOS pyinstaller build and package
         run: |
@@ -103,13 +103,13 @@ jobs:
         uses: actions/upload-artifact@v4
         name: MacOS dmg upload
         with:
-          name: CellProfiler-macOS-4.2.70001-ai.dmg
+          name: CellProfiler-macOS-4.2.80001-ai.dmg
           path: ./dist/*.dmg
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v4
         name: Windows artifact upload
         with:
-          name: CellProfiler-Windows-4.2.70001-ai.exe
+          name: CellProfiler-Windows-4.2.80001-ai.exe
           path: ./distribution/windows/Output/*.exe
   upload:
     name: upload
