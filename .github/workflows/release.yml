@@ -132,7 +132,6 @@ jobs:
 
 name: create-release
 on:
-  workflow_dispatch:
   push:
     branches:
       - compat-4-2-ai
