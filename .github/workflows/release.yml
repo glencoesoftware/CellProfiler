@@ -95,18 +95,14 @@ jobs:
         run: |
           pyinstaller -y ./distribution/macos/CellProfiler.spec
       - if: startsWith(matrix.os, 'macos')
-        name: MacOS dmg package
-        continue-on-error: true
-        run: |
-          cd dist
-          echo Creating DMG
-          create-dmg 'CellProfiler+AI.app' --dmg-title "CellProfiler+AI.dmg"
+        name: MacOS tar package
+        run: tar -cvf dist/CellProfiler+AI.tar dist/CellProfiler+AI.app
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v4
-        name: MacOS dmg upload
+        name: MacOS tar upload
         with:
-          name: CellProfiler-macOS-4.2.80001-ai.dmg
-          path: ./dist/*.dmg
+          name: CellProfiler-macOS-4.2.80001-ai.tar
+          path: ./dist/*.tar
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v4
         name: Windows artifact upload
