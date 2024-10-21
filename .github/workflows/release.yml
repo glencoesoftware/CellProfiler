@@ -53,8 +53,8 @@ jobs:
           git checkout compat-4-2
           pip install --editable . --upgrade
           cd ..
-          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install --editable .
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
       - env:
           JDK_HOME: ${{ env.JAVA_HOME }}
           CPPFLAGS: -I/usr/local/opt/mysql@8.0/include
@@ -70,9 +70,9 @@ jobs:
           git checkout compat-4-2
           pip install --editable . --upgrade
           cd ..
-          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install --editable .
           pip install wxpython==4.1.1
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
       - name: Install plugins
         run: |
           pip install torch==2.2.1
