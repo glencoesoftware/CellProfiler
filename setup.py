@@ -65,7 +65,7 @@ setuptools.setup(
     install_requires=[
         "boto3>=1.12.28",
         "cellprofiler-core==4.2.8",
-        "centrosome==1.2.3",
+        "centrosome~=1.2.3",
         "docutils==0.15.2",
         "h5py==3.6.0",
         "imageio==2.34.0",
@@ -80,7 +80,7 @@ setuptools.setup(
         "opencv-python-headless==4.5.3.56",
         "Pillow==8.3.2",
         "prokaryote==2.4.4",
-        "python-bioformats==4.0.7",
+        "python-bioformats~=4.1.10001",
         "python-javabridge==4.0.3",
         "pyzmq==22.3.0",
         "sentry-sdk==0.18.0",
