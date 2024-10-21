@@ -48,7 +48,7 @@ jobs:
           brew link mysql@8.0
           pip install mysqlclient==2.0.3
           pip install https://github.com/glencoesoftware/core/releases/download/v4.2.80001/cellprofiler_core-4.2.8-py3-none-any.whl
-          pip install --editable .
+          pip install .
           pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
           pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
       - env:
@@ -61,7 +61,7 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install mysqlclient==2.0.3
           pip install https://github.com/glencoesoftware/core/releases/download/v4.2.80001/cellprofiler_core-4.2.8-py3-none-any.whl
-          pip install --editable .
+          pip install .
           pip install wxpython==4.1.1
           pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
           pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
