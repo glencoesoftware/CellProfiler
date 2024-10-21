@@ -47,13 +47,13 @@ jobs:
           brew install mysql@8.0
           brew link mysql@8.0
           pip install mysqlclient==2.0.3
-          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
           pip install --editable . --upgrade
           cd ..
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install --editable .
       - env:
           JDK_HOME: ${{ env.JAVA_HOME }}
@@ -64,13 +64,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install mysqlclient==2.0.3
-          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
           git clone https://github.com/glencoesoftware/core.git
           cd core
           git checkout compat-4-2
           pip install --editable . --upgrade
           cd ..
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
           pip install --editable .
           pip install wxpython==4.1.1
       - name: Install plugins
