@@ -27,6 +27,7 @@ hiddenimports = []
 
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('centrosome')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.modules')
+hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler_core.modules')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules('cellprofiler.utilities')
 hiddenimports += PyInstaller.utils.hooks.collect_submodules("scipy")
