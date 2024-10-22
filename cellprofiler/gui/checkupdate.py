@@ -7,10 +7,10 @@ from cellprofiler import __version__ as current_version
 
 
 def check_update(parent, force=False):
-    if not force and not check_date():
+    if not force:
         return
     try:
-        response = requests.get("https://api.github.com/repos/cellprofiler/cellprofiler/releases/latest", timeout=0.25)
+        response = requests.get("https://api.github.com/repos/glencoesoftware/cellprofiler/releases/latest", timeout=0.25)
     except:
         response = False
         message = "CellProfiler was unable to connect to GitHub to check for updates"
@@ -19,6 +19,8 @@ def check_update(parent, force=False):
         response = response.json()
         if status == 200 and 'name' in response:
             latest_version = response['name'][1:]
+            if '-' in latest_version:
+                latest_version = latest_version.split('-')[0]
             if current_version < latest_version or len(current_version) != len(latest_version):
                 body_text = response['body']
                 if len(body_text) > 1000:
