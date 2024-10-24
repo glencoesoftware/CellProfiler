@@ -119,7 +119,7 @@ jobs:
           draft: true
           files: |
             ./*.exe
-            ./*.dmg
+            ./*.tar
 
 name: create-release
 on:
