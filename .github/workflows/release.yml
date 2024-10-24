@@ -4,7 +4,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, windows-2019 ]
+        os: [ macos-13, windows-2019 ]
         python-version: [ "3.8" ]
       fail-fast: false
     steps:
@@ -21,7 +21,7 @@ jobs:
         name: Install Java
         with:
           distribution: "temurin"
-          java-version: "11" # The JDK version to make available on the path.
+          java-version: "11.0.20+8" # The JDK version to make available on the path.
           java-package: jdk
           architecture: x64
 
@@ -47,28 +47,24 @@ jobs:
           brew install mysql@8.0
           brew link mysql@8.0
           pip install mysqlclient==2.0.3
-          pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
-          git clone https://github.com/glencoesoftware/core.git
-          cd core
-          git checkout compat-4-2
-          pip install --editable . --upgrade --no-use-pep517
-          cd ..
-          pip install --editable . --no-use-pep517
+          pip install https://github.com/glencoesoftware/core/releases/download/v4.2.80001/cellprofiler_core-4.2.8-py3-none-any.whl
+          pip install .
+          pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
       - env:
           JDK_HOME: ${{ env.JAVA_HOME }}
+          CPPFLAGS: -I/usr/local/opt/mysql@8.0/include
+          LDFLAGS: "-L/usr/local/opt/mysql@8.0/lib -L/usr/local/opt/openssl/lib"
         if: startsWith(matrix.os, 'windows')
         name: Windows dependency install
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install mysqlclient==2.0.3
-          pip install centrosome==1.2.2 --no-cache-dir --no-build-isolation
-          git clone https://github.com/glencoesoftware/core.git
-          cd core
-          git checkout compat-4-2
-          pip install --editable . --upgrade --no-use-pep517
-          cd ..
-          pip install --editable . --no-use-pep517
+          pip install https://github.com/glencoesoftware/core/releases/download/v4.2.80001/cellprofiler_core-4.2.8-py3-none-any.whl
+          pip install .
           pip install wxpython==4.1.1
+          pip install https://github.com/DavidStirling/prokaryote/releases/download/v2.4.5/prokaryote-2.4.5.tar.gz --no-cache-dir --no-build-isolation
+          pip install https://github.com/DavidStirling/python-bioformats/releases/download/v4.1.10001/python_bioformats-4.1.10001-py3-none-any.whl
       - name: Install plugins
         run: |
           pip install torch==2.2.1
@@ -85,29 +81,26 @@ jobs:
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
           rm ./dist/CellProfiler/jvm.dll
-          iscc /dMyAppVersion="4.2.60001-ai" "distribution/windows/cellprofiler.iss"
+          iscc /dMyAppVersion="4.2.80001-ai" "distribution/windows/cellprofiler.iss"
       - if: startsWith(matrix.os, 'macos')
         name: MacOS pyinstaller build and package
         run: |
           pyinstaller -y ./distribution/macos/CellProfiler.spec
       - if: startsWith(matrix.os, 'macos')
-        name: MacOS dmg package
-        continue-on-error: true
-        run: |
-          cd dist
-          echo Creating DMG
-          create-dmg 'CellProfiler+AI.app' --dmg-title "CellProfiler+AI.dmg"
+        name: MacOS tar package
+        run: tar -cvf CellProfiler+AI.tar CellProfiler+AI.app
+        working-directory: ./dist
       - if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v4
-        name: MacOS dmg upload
+        name: MacOS tar upload
         with:
-          name: CellProfiler-macOS-4.2.60001-ai.dmg
-          path: ./dist/*.dmg
+          name: CellProfiler-macOS-4.2.80001-ai.tar
+          path: ./dist/*.tar
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v4
         name: Windows artifact upload
         with:
-          name: CellProfiler-Windows-4.2.60001-ai.exe
+          name: CellProfiler-Windows-4.2.80001-ai.exe
           path: ./distribution/windows/Output/*.exe
   upload:
     name: upload
