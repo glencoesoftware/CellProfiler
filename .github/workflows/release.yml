@@ -69,7 +69,7 @@ jobs:
         run: |
           pip install torch==2.2.1
           pip install cellpose==3.0.5
-          pip install csbdeep==0.8.1 stardist==0.9.1 tensorflow>=2.12.1 keras<3.6
+          pip install csbdeep==0.8.1 stardist==0.9.1 tensorflow==2.12.1 keras==2.12.0
           pip install markupsafe==2.0.1 h5py==3.6.0
       - name: Display installed packages
         run: pip list
