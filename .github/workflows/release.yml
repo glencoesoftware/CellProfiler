@@ -69,11 +69,8 @@ jobs:
         run: |
           pip install torch==2.2.1
           pip install cellpose==3.0.5
-          pip install csbdeep==0.7.4
-          pip install stardist==0.8.1
-          pip install tensorflow==2.12.1
-          pip install markupsafe==2.0.1
-          pip install h5py==3.6.0
+          pip install csbdeep==0.8.1 stardist==0.9.1 tensorflow==2.12.1 keras==2.12.0
+          pip install markupsafe==2.0.1 h5py==3.6.0
       - name: Display installed packages
         run: pip list
       - if: startsWith(matrix.os, 'windows')
@@ -81,7 +78,7 @@ jobs:
         run: |
           pyinstaller distribution/windows/cellprofiler.spec
           rm ./dist/CellProfiler/jvm.dll
-          iscc /dMyAppVersion="4.2.80001-ai" "distribution/windows/cellprofiler.iss"
+          iscc /dMyAppVersion="4.2.80002-ai" "distribution/windows/cellprofiler.iss"
       - if: startsWith(matrix.os, 'macos')
         name: MacOS pyinstaller build and package
         run: |
@@ -94,13 +91,13 @@ jobs:
         uses: actions/upload-artifact@v4
         name: MacOS tar upload
         with:
-          name: CellProfiler-macOS-4.2.80001-ai.tar.gz
+          name: CellProfiler-macOS-4.2.80002-ai.tar.gz
           path: ./dist/*.tar.gz
       - if: startsWith(matrix.os, 'windows')
         uses: actions/upload-artifact@v4
         name: Windows artifact upload
         with:
-          name: CellProfiler-Windows-4.2.80001-ai.exe
+          name: CellProfiler-Windows-4.2.80002-ai.exe
           path: ./distribution/windows/Output/*.exe
   upload:
     name: upload
